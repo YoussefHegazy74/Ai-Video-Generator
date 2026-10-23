@@ -1,0 +1,12 @@
+# Application settings placeholder.
+#
+# Responsibility: define runtime configuration shared by the API, services, and
+# agents once the technology stack is selected.
+# Workflow: consumed during application startup and injected into components.
+# No settings are defined yet. Environment-specific values must not be committed.
+#
+# Expected groups (names and values are still undecided):
+# - runtime and API settings
+# - storage locations
+# - provider selection and capability limits
+# - logging and observability

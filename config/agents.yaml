@@ -1,0 +1,11 @@
+# Agent configuration placeholder.
+#
+# Responsibility: describe agent roles, model routing, retry policy, and shared
+# workflow limits once agent contracts are designed.
+# Workflow: read by the orchestrator and agent factory at runtime.
+# No agents, model names, prompts, or provider settings are defined yet.
+#
+# Expected groups (names and values are still undecided):
+# - orchestrator and routing settings
+# - per-agent capability requirements
+# - retry, timeout, and concurrency limits

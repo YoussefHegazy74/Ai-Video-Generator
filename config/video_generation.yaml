@@ -1,0 +1,12 @@
+# Video generation configuration placeholder.
+#
+# Responsibility: collect scene-level generation constraints, assembly options,
+# and output requirements once a provider is selected.
+# Workflow: consumed by scene packaging, generation, validation, and assembly.
+# No durations, resolutions, model names, or provider settings are defined yet.
+#
+# Expected groups (names and values are still undecided):
+# - supported scene durations and resolution per provider
+# - audio requirements and loudness targets
+# - transitions, titles, and final output metadata
+# - validation thresholds
