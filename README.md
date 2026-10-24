@@ -1,8 +1,11 @@
 # AI Educational Video Generator
 
-> **Status:** initial project skeleton only. The repository contains documentation
-> placeholders, package layout, and configuration placeholders. No agents, API
-> endpoints, generation pipeline, or working video features are implemented yet.
+> **Status:** early implementation. The repository still contains many
+> documentation, API, service, and pipeline placeholders, but the scene-planning
+> Script Agent and Whiteboard Director Agent, their shared contracts, prompts,
+> validation, and unit tests are implemented. See
+> `docs/team_component_contracts.md`. Other agents, API endpoints, the generation
+> pipeline, and working video features are not implemented yet.
 
 ## Vision
 

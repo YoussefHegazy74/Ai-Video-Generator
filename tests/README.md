@@ -1,9 +1,16 @@
 # Tests
 
-**Status:** placeholder. No test framework or test cases have been added.
+**Status:** pytest-based unit tests exist for the scene-planning contracts,
+Script Agent, and Whiteboard Director Agent. Integration and end-to-end suites
+remain placeholders.
 
-This directory will hold automated tests for ingestion, agent workflows, scene
-contracts, provider adapters, validation, and assembly.
+This directory holds automated tests for ingestion, agent workflows, scene
+contracts, provider adapters, validation, and assembly. Run the current suite
+from the repository root with:
+
+```bash
+PYTHONPATH=src pytest -q
+```
 
 ## Intended contents
 
