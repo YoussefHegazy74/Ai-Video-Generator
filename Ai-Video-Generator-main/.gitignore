@@ -1,0 +1,37 @@
+# Repository-wide ignore rules.
+# Runtime uploads, extracted content, generated artifacts, local secrets, and
+# tool caches must stay out of version control. Extend the language-specific
+# section once the implementation stack is finalized.
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python bytecode and local tooling (the source layout uses Python packages)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Operating system and editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Runtime data: keep directory markers, ignore user content
+data/uploads/*
+!data/uploads/.gitkeep
+data/extracted/*
+!data/extracted/.gitkeep
+data/generated/*
+!data/generated/.gitkeep
+
+# Generated artifacts: keep the directory documentation only
+artifacts/*
+!artifacts/README.md

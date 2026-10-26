@@ -1,0 +1,42 @@
+# Runtime settings for the implemented Parts 5-7 pipeline.
+# Relative paths are resolved against the repository root.
+# AIVG_* environment variables override these values.
+
+environment: development
+log_level: INFO
+json_logs: true
+
+storage:
+  root: artifacts
+  temp_root: artifacts/.work
+  registry_path: artifacts/artifact_registry.json
+
+media:
+  ffmpeg_path: ffmpeg
+  ffprobe_path: ffprobe
+  probe_timeout_seconds: 60
+  render_timeout_seconds: 1800
+
+provider:
+  id: deterministic_whiteboard
+  gemini:
+    model: gemini-omni-1.1-flash
+    aspect_ratio: "16:9"
+    resolution: "720p"
+  whiteboard:
+    width: 1280
+    height: 720
+    fps: 24
+    preset: veryfast
+    crf: 20
+    narrator: auto
+    tts_rate: 0
+
+generation:
+  max_attempts: 3
+  backoff_base_seconds: 1.0
+  backoff_max_seconds: 8.0
+  backoff_jitter_seconds: 0.25
+  timeout_seconds: 600
+  max_validation_attempts: 2
+  sync_tolerance_seconds: 0.35

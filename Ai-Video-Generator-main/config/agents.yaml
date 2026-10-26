@@ -1,0 +1,26 @@
+# Agent configuration for the implemented synchronous pipeline.
+# Runtime settings and credentials are not stored here; see config/settings.yaml,
+# config/video_generation.yaml, and .env.example.
+#
+# The current orchestrator runs generation -> validation -> assembly in one
+# process. There is no worker queue or distributed idempotency.
+
+orchestration:
+  mode: synchronous
+  max_validation_attempts: 2
+  cancellation: cooperative-between-work-units
+
+agents:
+  generation:
+    implementation: src/ai_video_generator/agents/generation/video_generation_agent.py
+    retries: configured in settings.yaml generation.max_attempts
+  validation:
+    implementation: src/ai_video_generator/agents/validation/scene_validation_agent.py
+    gate: blocking_failures_prevent_assembly
+  assembly:
+    implementation: src/ai_video_generator/agents/assembly/video_assembly_agent.py
+    transitions:
+      - cut
+      - fade_black
+    unsupported:
+      - crossfade

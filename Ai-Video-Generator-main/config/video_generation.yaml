@@ -1,0 +1,69 @@
+# Scene validation and final assembly defaults.
+# AIVG_VALIDATION_* and AIVG_ASSEMBLY_* environment variables override these
+# values. Validation is a gate: only blocking failures prevent assembly.
+
+validation:
+  require_audio: true
+  duration_warning_tolerance_seconds: 1.5
+  duration_failure_tolerance_seconds: 3.0
+  enforce_project_duration_range: true
+  min_scene_duration_seconds: 8.0
+  max_scene_duration_seconds: 15.0
+  sync_tolerance_seconds: 0.35
+  sync_failure_tolerance_seconds: 0.9
+  min_width: 640
+  min_height: 360
+  min_fps: 8.0
+  min_media_bytes: 1024
+  audio_silence_mean_db: -50.0
+  audio_silence_max_db: -45.0
+  black_frame_warning_ratio: 0.5
+  black_frame_failure_ratio: 0.9
+  blank_frame_stddev_threshold: 2.0
+  supported_video_codecs:
+    - h264
+    - hevc
+    - vp9
+    - av1
+    - mpeg4
+  supported_audio_codecs:
+    - aac
+    - mp3
+    - opus
+    - vorbis
+    - flac
+    - pcm_s16le
+    - pcm_s24le
+  supported_containers:
+    - mp4
+    - mov
+    - webm
+    - matroska
+  block_on_warnings: false
+
+assembly:
+  include_intro: true
+  include_outro: true
+  intro_title: null
+  intro_subtitle: null
+  outro_title: Lesson complete
+  outro_subtitle: null
+  intro_duration_seconds: 2.5
+  outro_duration_seconds: 2.5
+  transition: fade_black
+  transition_duration_seconds: 0.35
+  width: 1280
+  height: 720
+  fps: 24
+  video_codec: libx264
+  audio_codec: aac
+  sample_rate: 48000
+  channels: 2
+  output_container: mp4
+  show_scene_titles: true
+  show_progress: true
+  audio_fade_seconds: 0.0
+  duration_tolerance_seconds: 1.5
+  render_timeout_seconds: 3600
+  crf: 20
+  preset: veryfast
