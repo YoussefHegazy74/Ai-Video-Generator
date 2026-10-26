@@ -2,9 +2,10 @@
 
 **Audience:** planning/personalization, ingestion, provider, packaging, TTS,
 rendering, orchestration, and assembly owners.
-**Status:** Script Agent, Whiteboard Director Agent, and shared contracts are
-implemented and unit-tested with a deterministic fake LLM. No provider, TTS,
-renderer, packaging, or end-to-end video path has been tested.
+**Status:** the Script Agent, Whiteboard Director Agent, shared contracts,
+Example & Visual Agent, timing, Scene Packager, ScenePromptBuilder, and their
+cross-component flow are implemented and tested with a deterministic fake LLM.
+No live provider, TTS, renderer, or end-to-end video path has been tested.
 
 This is the short integration guide. The full contract, examples, renderer
 requirements, and ownership table are in
@@ -27,7 +28,19 @@ LessonPlan / SceneBrief / SourceExcerpts
   WhiteboardDirectorAgent.generate()
                  │  WhiteboardPlan
                  ▼
-        ScenePlanningResult
+        ScenePlanningResult ─────────────┐
+                 │                       │
+                 ▼                       │
+       VisualDesignAgent                 │
+                 │  VisualPlanningResult
+                 ▼                       │
+          ScenePackager ◄────────────────┘
+                 │  ScenePackage
+                 ▼
+        ScenePromptBuilder
+                 │  ScenePrompt
+                 ▼
+     provider-specific generation
 ```
 
 - **Script Agent:** one scene's narration segments, key points, source
@@ -36,8 +49,15 @@ LessonPlan / SceneBrief / SourceExcerpts
   handwriting cues, highlight cues, and continuity instructions.
 - **Combined handoff:** `ScenePlanningResult` bundles the original `SceneBrief`,
   validated `SceneScript`, and `WhiteboardPlan`.
-- **Not delivered:** provider calls, TTS, audio, rendering, visual assets,
-  provider-facing scene packages, orchestration, or final video.
+- **Example & Visual Agent:** a scene-scoped `VisualPlan` describing teaching
+  visuals, examples, analogies, and exact on-screen text.
+- **Scene Packager:** deterministically composes the canonical provider-neutral
+  `ScenePackage` from the planning and visual results plus explicit duration
+  limits.
+- **ScenePromptBuilder:** projects a validated `ScenePackage` into structured,
+  provider-neutral `ScenePrompt` data with explicitly labeled planning timing.
+- **Not delivered:** live provider calls, TTS, audio, rendering, external visual
+  assets, provider-specific payloads, orchestration, or final video.
 
 ---
 
@@ -49,7 +69,7 @@ It builds a valid input, uses a deterministic `LLMClient`, runs both agents,
 round-trips the result, and emits the packaging handoff as JSON:
 
 ```bash
-python3 examples/scene_planning_integration.py
+python examples/scene_planning_integration.py
 ```
 
 The script prints one object with exactly two top-level keys:
@@ -141,29 +161,42 @@ Rules the input contract enforces:
 
 ### Packaging
 
-Use `ScenePlanningResult` as the recommended handoff. It validates:
-
-- `script.scene_id` and `whiteboard.scene_id` match `scene.scene_id`;
-- every drawing/highlight narration anchor exists in the script;
-- every key-point `source_id` exists in the bundled `SceneBrief`.
-
-Pass the original page selection separately. `ScenePlanningResult` does not
-duplicate it:
+Use `ScenePlanningResult` plus the scene-scoped `VisualPlanningResult` as the
+handoff. The deterministic packager also requires explicit `DurationLimits`:
 
 ```python
-packaging_input = {
-    "scene_planning_result": result.to_dict(),
-    "selected_pages": [page.to_dict() for page in planning_input.selected_pages],
-}
+from ai_video_generator.agents.scene_packaging import (
+    ScenePackager,
+    ScenePromptBuilder,
+)
+from ai_video_generator.video.scene_timing import DurationLimits
+
+package = ScenePackager().package(
+    planning_result,
+    visual_result,
+    DurationLimits(minimum_seconds=20.0, maximum_seconds=90.0),
+)
+prompt = ScenePromptBuilder().build(package)
 ```
 
-The `Scene Packager` must preserve `selected_pages` if it needs to display or
-re-check the user's selection. It is not reconstructible from the result when
-the scene cites only a subset of the selected pages.
+`ScenePackagingInputError` covers mistyped inputs or mismatched scene IDs.
+`SceneDurationError` blocks package creation when the planning timeline or target
+violates the configured bounds; its `.findings` contains the blocking timing
+findings. Canonical `ContractError` cross-reference failures propagate unchanged.
+The advisory `timing.target_mismatch` warning remains on `package.timeline`.
 
-`ScenePlanningResult` is **not** the provider-facing scene package and does not
-replace `video/scene_contract.py`. Mapping to that package is a Scene Packager
-decision.
+Pass the original page selection separately if a downstream consumer needs it.
+`ScenePackage` does not duplicate `selected_pages`; it preserves the scene's
+source excerpts and their order:
+
+```python
+selection_handoff = [
+    page.to_dict() for page in planning_input.selected_pages
+]
+```
+
+`ScenePackage` is provider-neutral and does not replace a provider-specific
+payload. `ScenePrompt` is structured prompt data, not a provider API request.
 
 ### TTS / timing
 
@@ -175,6 +208,9 @@ decision.
   absolute timestamps.
 - If TTS splits or merges segments, define an explicit mapping so anchors can be
   re-resolved.
+- `ScenePrompt.timing.basis` is explicitly `planning_estimate`; it carries the
+  packaging timeline and the fixed planning-estimate notice. Do not relabel it
+  as actual audio timing.
 
 ### Renderer
 
@@ -221,23 +257,28 @@ contract for the full primitive table.
 - Some plan-wide rules cannot be expressed in JSON Schema (unique orders,
   cross-references, point-in-region geometry, highlight/continuity semantics).
   Schema-valid output can still fail runtime validation.
-- `ScenePlanningResult` does not duplicate `selected_pages`; packaging that needs
-  the original selection must receive it from planning.
-- Warnings (duration deviation, pacing, language, overlapping regions, unanchored
-  segments, long text, action count) do not block output. The team must decide
-  whether packaging treats them as blocking.
+- `ScenePlanningResult` and `ScenePackage` do not duplicate `selected_pages`; a
+  consumer that needs the original selection must receive it from planning.
+- Agent warnings (duration deviation, pacing, language, overlapping regions,
+  unanchored segments, long text, action count) do not block agent output.
+  Packaging separately blocks on duration-bound errors and retains
+  `timing.target_mismatch` as a warning; whether other agent warnings should
+  block packaging remains a team decision.
 
 ---
 
 ## 6. Known limitations
 
-- Unit tests use a fake LLM only. No live provider, TTS, audio, renderer,
-  packaging, or video generation has been exercised.
+- Tests use a fake LLM only. No live provider, TTS, audio, renderer, or final
+  video generation has been exercised.
+- Packaging and prompt data are deterministic and provider-neutral; there is no
+  provider-specific payload or actual audio timing yet.
 - No semantic fact-checking beyond source-ID grounding.
 - No provider adapter, retries, persistence, API routes, or job state.
 - Renderer semantics (origin, aspect ratio, circle/rectangle interpretation,
   z-order) are provisional.
-- Visual Design integration and on-screen citation display are unresolved.
+- External visual assets, image placement, z-order, and on-screen citation
+  display are unresolved.
 - Source ingestion and upstream planning models are provisional adapters.
 - The contracts are frozen dependency-free dataclasses, not Pydantic.
 
@@ -370,26 +411,31 @@ need team-wide confirmation before cross-component integration.
   `script.pacing_outlier`.
 - **Current provisional behavior:** scene planning estimates and warns only.
   Duration deviation is warned when it exceeds `max(2.0, target * 0.25)`
-  seconds; pacing is warned outside 70–220 words per minute. Nothing blocks
-  output or triggers re-planning.
-- **Confirm:** Who enforces the target duration and tolerance? Who decides that
-  re-planning is required, and how many attempts are allowed? Are duration
-  warnings advisory for packaging or blocking? Is the final duration measured
-  from TTS audio or from the plan?
+  seconds; pacing is warned outside 70–220 words per minute. `ScenePackager`
+  independently applies explicit `DurationLimits`: out-of-bounds totals or
+  targets block packaging, while `timing.target_mismatch` remains advisory. No
+  re-planning is triggered automatically.
+- **Confirm:** Who owns the production `DurationLimits` values, and are the
+  current blocking/advisory rules correct for orchestration? Who decides that
+  re-planning is required, and how many attempts are allowed? Is final duration
+  measured from TTS audio or from the plan?
 - **Scene planning alone:** No.
 
 #### [ ] 7. Visual Design integration
 
 - **Owner:** Visual Design with scene packaging.
-- **Exact interface/fields:** `WhiteboardPlan.layout` (`BoardLayout` with
-  `BoardRegion` entries) and `WhiteboardPlan.drawing` (`DrawingPlan` with
-  primitives). The plan contains no external image/video assets and no
-  instructor/avatar representation.
-- **Current provisional behavior:** whiteboard direction covers layout regions,
-  drawing primitives, handwriting, highlights, and continuity only.
-- **Confirm:** What is the Visual Design asset input schema? How are assets
-  associated with board regions or actions, who owns z-order and image
-  placement, and does packaging merge assets before or after continuity
+- **Exact interface/fields:** `VisualPlan(scene_id, items,
+  schema_version="1.0")` with `VisualItem(visual_id, purpose, kind,
+  description, segment_ids, key_point_ids, source_ids, exact_text,
+  accessibility_notes)`; `WhiteboardPlan.layout` and `.drawing` remain the
+  layout/primitive contracts.
+- **Current provisional behavior:** the Example & Visual Agent produces the
+  semantic visual plan and the Scene Packager composes it with the whiteboard
+  plan. No external image/video assets, instructor/avatar representation, asset
+  URLs, or renderer placement are modeled.
+- **Confirm:** What is the future external-asset input schema? How are assets
+  associated with visual items, board regions, or actions, who owns z-order and
+  image placement, and does packaging merge assets before or after continuity
   resolution?
 - **Scene planning alone:** No.
 
@@ -398,15 +444,18 @@ need team-wide confirmation before cross-component integration.
 - **Owner:** Scene Packager.
 - **Exact interface/fields:** recommended handoff is
   `ScenePlanningResult(lesson_id, scene, script, whiteboard,
-  schema_version="1.0")`. The provider-facing canonical contract is still the
-  placeholder `video/scene_contract.py`.
-- **Current provisional behavior:** `ScenePlanningResult` is the combined,
-  validated planning artifact; it is not a provider package.
-- **Confirm:** What is the exact mapping from `ScenePlanningResult` to the
-  canonical scene/provider package? Which fields survive unchanged, which are
-  transformed, who owns the package schema/version, and does packaging consume
-  `selected_pages` separately? Does the canonical contract wrap
-  `ScenePlanningResult` or replace it?
+  schema_version="1.0")` plus a `VisualPlanningResult` and explicit
+  `DurationLimits`. `ScenePackager.package(...)` returns
+  `ScenePackage(lesson_id, scene_id, script, visual, whiteboard, timeline,
+  source_excerpts, schema_version="1.0")`.
+- **Current provisional behavior:** the canonical provider-neutral package is
+  implemented in `video/scene_contract.py`; `ScenePlanningResult` remains the
+  combined planning artifact. Packaging is deterministic and makes no provider
+  calls. `selected_pages` is not duplicated in the package.
+- **Confirm:** Is this package shape the accepted handoff for provider-specific
+  packaging, and which consumer owns the mapping from `ScenePackage` to provider
+  payloads? Does any consumer require `selected_pages` inside the package? Are
+  the schema version and strict unknown-field rejection acceptable?
 - **Scene planning alone:** No.
 
 #### [ ] 9. Renderer semantics
@@ -435,14 +484,16 @@ need team-wide confirmation before cross-component integration.
   `.warnings`, `.is_valid`, `.summary`; `ValidationIssue(severity, code,
   message, path)`; typed failures `AgentInputError`, `LLMProviderError`,
   `AgentOutputError` (with `.details`/`.raw_output`), `ScenePlanningError`.
-- **Current provisional behavior:** warnings are advisory and never block agent
-  output. Errors block output. The warnings currently include duration
-  deviation, pacing, language mismatch, overlapping regions, unanchored
-  narration segments, excessive action count, long written text, and a repeated
-  previous scene ID.
-- **Confirm:** Which warnings, if any, block packaging? Who owns factual and
-  semantic review, since scene planning only grounds citation IDs? Are
-  validation reports persisted, and who decides retry/re-plan from errors?
+- **Current provisional behavior:** agent warnings are advisory and never block
+  agent output; agent errors block output. `ScenePackager` blocks on its
+  duration-bound errors but retains `timing.target_mismatch` as a warning. Agent
+  warnings include duration deviation, pacing, language mismatch, overlapping
+  regions, unanchored narration segments, excessive action count, long written
+  text, and a repeated previous scene ID.
+- **Confirm:** Should any current agent warnings also block packaging? Who owns
+  factual and semantic review, since planning and packaging only ground citation
+  IDs? Are validation reports persisted, and who decides retry/re-plan from
+  errors?
 - **Scene planning alone:** No.
 
 #### [ ] 11. Scene and lesson ID format
@@ -463,15 +514,21 @@ need team-wide confirmation before cross-component integration.
 
 - **Owner:** all consumers, coordinated by team-wide agreement.
 - **Exact interface/fields:** `SCENE_SCRIPT_SCHEMA_VERSION = "1.0"`,
-  `WHITEBOARD_PLAN_SCHEMA_VERSION = "1.0"`, and
-  `SCENE_PLANNING_RESULT_SCHEMA_VERSION = "1.0"`. Each contract has a
-  `schema_version` field. Unknown versions are rejected; `from_dict` defaults
-  missing versions to `"1.0"`.
+  `WHITEBOARD_PLAN_SCHEMA_VERSION = "1.0"`,
+  `SCENE_PLANNING_RESULT_SCHEMA_VERSION = "1.0"`,
+  `VISUAL_PLAN_SCHEMA_VERSION = "1.0"`,
+  `VISUAL_PLANNING_RESULT_SCHEMA_VERSION = "1.0"`,
+  `SCENE_TIMELINE_SCHEMA_VERSION = "1.0"`,
+  `SCENE_PACKAGE_SCHEMA_VERSION = "1.0"`, and
+  `SCENE_PROMPT_SCHEMA_VERSION = "1.0"`. Each contract has a `schema_version`
+  field. Unknown versions are rejected; `from_dict` defaults missing versions to
+  `"1.0"`.
 - **Current provisional behavior:** only version `1.0` is accepted. There is no
   migration layer.
 - **Confirm:** Is fail-on-unknown-version acceptable, or is migration required?
   Who bumps versions and updates schemas/docs/tests? What compatibility window
-  applies? Which version does the provider package use?
+  applies? Which version does the provider-specific payload use, and how are
+  `ScenePackage` and `ScenePrompt` versions negotiated?
 - **Scene planning alone:** No. Not currently blocking local tests.
 
 #### [ ] 13. Human review and citation display
@@ -521,18 +578,21 @@ in section 2.
 Run from the repository root:
 
 ```bash
-pytest -q
-PYTHONPATH=src pytest -q
-PYTHONPATH=src python3 -m compileall -q src tests
+python -m pytest -q -p no:cacheprovider
+python -m compileall -q src tests
 git diff --check
-python3 examples/scene_planning_integration.py
+python examples/scene_planning_integration.py
 ```
 
-Tests require no API keys, paid services, or internet access.
+Tests require no API keys, paid services, or internet access. The cross-component
+test in `tests/unit/test_scene_pipeline_integration.py` covers the visual-plan →
+`ScenePackage` → `ScenePrompt` sequence with a deterministic fake LLM.
 
 For the full contract, examples, renderer requirements, and the source
 coordination table, see [`team_component_contracts.md`](team_component_contracts.md).
 
 The example verifies only the current public scene-planning APIs and the
 selected-page handoff. It does not validate a live provider, TTS timing,
-rendering, scene packaging, or end-to-end video generation.
+rendering, provider-specific packaging, or end-to-end video generation. Scene
+packaging and prompt data are covered separately by deterministic unit and
+cross-component tests.

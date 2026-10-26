@@ -4,8 +4,10 @@
 **Owner:** scene-planning component (Script Agent, Whiteboard Director Agent, and
 their shared contracts, prompts, schemas, validation, and tests).
 **Scope:** one planned lesson scene at a time.
-**Last verified:** unit tests with a deterministic fake LLM only. No provider,
-TTS, renderer, packaging, or end-to-end video test has been run.
+**Last verified:** the full dependency-free test suite passed with a
+deterministic fake LLM, including an integration flow through visual planning,
+scene packaging, and prompt-data construction. No live provider, TTS, renderer,
+or end-to-end video test has been run.
 
 This document is the coordination boundary between this component and the
 planning/personalization, ingestion, provider, packaging, generation, and
@@ -40,6 +42,19 @@ The implementation lives in:
 | Whiteboard contracts | `src/ai_video_generator/whiteboard/board_layout.py`, `drawing_instructions.py`, `handwriting_plan.py`, `highlighting.py`, `visual_continuity.py`, `plan.py` |
 | Tests | `tests/conftest.py`, `tests/unit/test_contracts.py`, `test_script_agent.py`, `test_whiteboard_director_agent.py`, `test_prompts_and_schemas.py`, `test_scene_planning_flow.py`, `test_hardening_regressions.py` |
 
+Adjacent components are implemented in the same repository but remain outside
+this component's ownership:
+
+| Responsibility | Files |
+| --- | --- |
+| Visual-plan contracts | `src/ai_video_generator/models/visual_plan.py`, `visual_planning.py` |
+| Example & Visual Agent | `src/ai_video_generator/agents/visual_design/` |
+| Planning timeline | `src/ai_video_generator/video/scene_timing.py` |
+| Canonical scene package | `src/ai_video_generator/video/scene_contract.py` |
+| Deterministic Scene Packager | `src/ai_video_generator/agents/scene_packaging/scene_packager_agent.py` |
+| Provider-neutral prompt data | `src/ai_video_generator/agents/scene_packaging/scene_prompt_builder.py` |
+| Cross-component tests | `tests/unit/test_scene_timing.py`, `test_visual_plan_contract.py`, `test_visual_design_agent.py`, `test_scene_package_contract.py`, `test_scene_packager.py`, `test_scene_prompt_builder.py`, `test_scene_pipeline_integration.py` |
+
 ## 2. Explicit non-goals
 
 This component does **not**:
@@ -48,11 +63,13 @@ This component does **not**:
 - implement personalization, style resolution, or audience analysis;
 - implement PDF/document ingestion, OCR, page extraction, or source
   normalization;
-- implement the Visual Design Agent, choose external images, or own visual
-  asset generation;
-- implement the Scene Packager, canonical provider-facing scene contract, video
-  model adapter, narration/TTS, audio generation, rendering, validation of
-  rendered media, or final assembly;
+- own the Example & Visual Agent, choose external images, or own visual asset
+  generation; visual planning is implemented separately in
+  `agents/visual_design`;
+- own the Scene Packager, canonical scene package, video model adapter,
+  narration/TTS, audio generation, rendering, validation of rendered media, or
+  final assembly; scene packaging and the canonical package are implemented
+  separately in `agents/scene_packaging` and `video`;
 - implement orchestration, retries, persistence, API routes, job state, or human
   review;
 - select or configure an LLM provider;
@@ -564,7 +581,11 @@ Upstream invariants enforced on construction:
 - `SCENE_SCRIPT_SCHEMA_VERSION` and the `SceneScript` shape: this component.
 - `WHITEBOARD_PLAN_SCHEMA_VERSION` and whiteboard shapes: this component.
 - `SCENE_PLANNING_RESULT_SCHEMA_VERSION` and combined handoff: this component.
-- Provider-facing scene package and its version: Scene Packager owner.
+- `SCENE_PACKAGE_SCHEMA_VERSION` and the canonical provider-neutral
+  `ScenePackage`: Scene Packager owner.
+- `SCENE_PROMPT_SCHEMA_VERSION` and provider-neutral prompt data: Scene
+  Packager owner.
+- Provider-specific payload and its version: provider/generation owner.
 - Final video/scene contract: generation/assembly owners.
 
 Unknown schema versions are rejected rather than silently accepted. Any shape
@@ -811,9 +832,10 @@ single Markdown JSON code fence but reject prose or non-object JSON.
 
 ### Downstream: packaging, narration/audio, rendering, assembly
 
-- **Scene Packager:** consume `ScenePlanningResult`; combine `script` and
-  `whiteboard` with Visual Design Agent output and provider constraints. Do not
-  ask this component to produce provider prompts or media.
+- **Scene Packager:** consume `ScenePlanningResult` plus a `VisualPlanningResult`
+  and explicit `DurationLimits`; compose the canonical `ScenePackage`. The
+  implemented packager is deterministic and provider-neutral. Do not ask this
+  component to produce provider prompts or media.
 - **Narration/TTS:** preserve `segment_id` values and segment order. Attach real
   audio timing downstream per segment. Estimated durations are planning hints,
   not rendered truth.
@@ -832,11 +854,13 @@ single Markdown JSON code fence but reject prose or non-object JSON.
 
 ### Visual Design Agent boundary
 
-The Visual Design Agent is separate and remains unimplemented by this
-component. Whiteboard direction covers board layout and drawing primitives. The
-team must agree how visual-design assets/examples are merged with whiteboard
-regions at packaging time, and which component owns z-order and image
-placement.
+The Example & Visual Agent is implemented separately in
+`agents/visual_design/`. It produces a scene-scoped `VisualPlan` describing
+teaching visuals, examples, analogies, and required exact text. Whiteboard
+direction still covers board layout and drawing primitives. `ScenePackager`
+composes both plans into `ScenePackage` without merging them. External asset
+selection, image placement, and z-order remain outside the current
+implementation and need team agreement.
 
 ---
 
@@ -863,9 +887,10 @@ placement.
 - **No factual/semantic verification.** Validation grounds citations to allowed
   source IDs; it cannot prove that narration faithfully represents the source.
   Human or future semantic review is required for factual accuracy.
-- **No end-to-end video test.** Only unit tests with a deterministic fake LLM
-  have run. No provider, TTS, audio, renderer, packaging, or video generation
-  path has been exercised.
+- **No live or end-to-end video test.** The suite uses a deterministic fake LLM
+  and exercises planning, packaging, and prompt-data construction. No live
+  provider, TTS, audio, renderer, or final video generation path has been
+  exercised.
 - **No provider adapter.** The local `LLMClient` protocol is a boundary, not an
   implementation. API keys, retries, rate limits, and provider error mapping are
   not implemented here.
@@ -881,8 +906,9 @@ placement.
 - **Renderer semantics are provisional.** Coordinate origin, aspect ratio,
   circle/rectangle point interpretation, z-order, and highlight rendering are
   not fixed.
-- **Visual Design integration is unresolved.** External assets, image
-  placement, and merging with board regions are out of scope.
+- **Visual Design scope is limited.** The semantic visual plan and its
+  composition into `ScenePackage` are implemented. External asset selection,
+  image placement, rendering, and z-order integration remain out of scope.
 - **Dataclasses, not Pydantic.** The implementation is dependency-free. There is
   no concrete integration requirement to migrate at this time.
 - **Source ingestion is provisional.** The canonical excerpt shape, multi-document
@@ -909,13 +935,13 @@ the fillable owner checklist and confirmation questions in section 7 of
 | 3 | Source ingestion contract | Requires agreement from another teammate | Ingestion/planning: canonical excerpt shape, stable IDs, multi-document support, page numbering, figure/equation/code/table representation | `SourceKind` and `SourceExcerpt` are provisional |
 | 4 | Provider interface | Requires a downstream interface definition | Provider/orchestration: implement `LLMClient` or define a shared protocol; structured output and error mapping | Local `LLMClient` protocol, `LLMRequest`/`LLMResponse` |
 | 5 | Segment-level audio alignment | Requires a downstream interface definition | TTS/timing: preserve `segment_id`/order and return per-segment real timing; define split/merge mapping | Segment IDs are the only timing anchors; no absolute timestamps |
-| 6 | Duration responsibility | Requires agreement from another teammate | Planning/TTS/orchestration: who enforces target duration, tolerance, and re-planning | Component estimates durations and emits warnings only |
-| 7 | Visual Design integration | Requires agreement from another teammate | Visual Design/packaging: how assets merge with board regions, z-order, image placement | Whiteboard plan contains primitives only |
-| 8 | Canonical scene contract | Requires a downstream interface definition | Scene Packager: define mapping from `ScenePlanningResult` to `video/scene_contract.py` and provider package | `ScenePlanningResult` is the recommended handoff, not the provider package |
+| 6 | Duration responsibility | Requires agreement from another teammate | Planning/TTS/orchestration: who enforces target duration, tolerance, and re-planning | Planning warns; packager blocks explicit duration-limit errors and retains target-mismatch warnings |
+| 7 | Visual Design integration | Requires agreement from another teammate | Visual Design/packaging: how assets merge with board regions, z-order, image placement | Semantic `VisualPlan` implemented; external asset merge and z-order remain open |
+| 8 | Canonical scene contract | Requires a downstream interface definition | Provider/generation: define mapping from provider-neutral `ScenePackage` to provider payloads | Canonical `ScenePackage` implemented; provider-specific mapping remains open |
 | 9 | Renderer semantics | Requires a downstream interface definition | Renderer: coordinate origin, aspect ratio, font/stroke defaults, highlight behavior, `clear_regions` representation | Normalized `0.0`–`1.0` coordinates and named primitives only |
-| 10 | Validation policy | Requires agreement from another teammate | Orchestration/review: which warnings block packaging; who owns factual/semantic review | Warnings are advisory; errors block agent output |
+| 10 | Validation policy | Requires agreement from another teammate | Orchestration/review: which warnings block packaging; who owns factual/semantic review | Agent warnings are advisory; packager blocks duration errors and retains target-mismatch warnings |
 | 11 | Scene and lesson ID format | Requires agreement from another teammate | Planning/database/API: confirm compatibility with `[A-Za-z0-9][A-Za-z0-9._:-]{0,127}` | Conservative exact-match ID pattern |
-| 12 | Versioning and compatibility | Not currently blocking local tests | All consumers: record schema versions and decide fail-versus-migrate for unknown versions | Unknown versions are rejected; versions are 1.0 |
+| 12 | Versioning and compatibility | Not currently blocking local tests | All consumers: record schema versions and decide fail-versus-migrate for unknown versions | Unknown versions are rejected; implemented contracts are `1.0` |
 | 13 | Human review and citation display | Requires agreement from another teammate | Product/review/UI: whether citations appear on-screen and how `SourceReference` is rendered without internal paths | References are preserved; display policy is unimplemented |
 
 Items resolved within this component during the hardening pass (not team
@@ -931,10 +957,10 @@ parsing.
 Run from the repository root:
 
 ```bash
-pytest -q
-PYTHONPATH=src pytest -q
-PYTHONPATH=src python3 -m compileall -q src tests
+python -m pytest -q -p no:cacheprovider
+python -m compileall -q src tests
 git diff --check
+python examples/scene_planning_integration.py
 ```
 
 The unit tests use a deterministic fake LLM and require no credentials or
@@ -959,8 +985,18 @@ network access. They cover:
 - segment-ID timing anchors, advisory duration estimates, and absence of
   absolute timestamps;
 - combined `ScenePlanningResult` source preservation and scene identity;
+- visual-plan contracts and the Example & Visual Agent response validation;
+- canonical `ScenePackage` identity, cross-reference, ordering, exact-text, and
+  serialization rules;
+- deterministic packaging, duration-bound blocking, retained target-mismatch
+  warnings, and typed packaging failures;
+- provider-neutral prompt-data construction with an explicit
+  `planning_estimate` timing basis;
+- the cross-component Script Agent → Whiteboard Director → Example & Visual
+  Agent → ScenePackager → ScenePromptBuilder flow with a deterministic fake
+  LLM;
 - the runnable `examples/scene_planning_integration.py` flow with the deterministic
   fake LLM, exact result round-trip, and separate selected-page handoff.
 
-Integration and end-to-end tests remain placeholders for the team components
-that own orchestration, providers, rendering, and assembly.
+The suite remains provider-free. Live provider, TTS, rendering, and
+final-video integration remain team-owned follow-up work.
