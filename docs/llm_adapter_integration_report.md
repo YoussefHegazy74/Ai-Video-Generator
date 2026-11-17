@@ -285,8 +285,11 @@ Verified facts:
 
 ### 11.2 Root cause and fix
 
-**Root cause (request-level):** the adapter unconditionally sent
-`temperature` to a model family that rejects/ignores sampling parameters.
+**Root cause (request-level, pending live confirmation):** the adapter
+unconditionally sent `temperature` to a model family that rejects/ignores
+sampling parameters. This is the only field in the captured request that
+conflicts with the configured model's documented constraints; the provider's
+exact 400 text was not available in this environment.
 
 **Fix:** `_supports_temperature(model)` now sends `temperature` only for
 explicitly known legacy families (`gemini-1.5-*`, `gemini-2.0-*`,
