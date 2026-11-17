@@ -246,8 +246,9 @@ synthetic clips, and a full lesson-pipeline run through real FFmpeg assembly.
 - Runtime scene IDs are stricter than planning IDs (64 chars, no `:`); the
   adapter rejects incompatible IDs with a clear error.
 - Planning runs are not cached or resumable. Both CLIs start from pending scenes, so
-  re-running a job regenerates its media; resuming from a persisted `scene_set.json`
-  is possible through the API but is not exposed as a CLI feature.
+  re-running a job regenerates its media. A persisted `scene_set.json` can be fed
+  back to `scripts/run_pipeline.py`, but resume behavior is not covered by tests or
+  a documented workflow.
 
 ## Repository layout
 
