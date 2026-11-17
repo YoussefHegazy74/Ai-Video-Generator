@@ -1,10 +1,33 @@
-"""Video generation agent.
+"""Thin generation agent over :class:`SceneGenerationService`."""
 
-Responsibility: submit packaged scenes to the configured audio/video provider,
-respect model-specific duration and resolution constraints, and collect results.
-Workflow: scene generation stage; one scene at a time or in bounded batches.
-Inputs: scene packages and provider capabilities (future).
-Outputs: generated scene media, timing metadata, and provider diagnostics (future).
-Interacts with: scene packager, audiovisual generation provider, storage, and validation.
-No agent implementation, model calls, or provider integration is included yet.
-"""
+from __future__ import annotations
+
+from typing import Callable
+
+from ai_video_generator.services.scene_generation_service import (
+    SceneGenerationService,
+)
+from ai_video_generator.video.generation_contract import SceneSpec
+
+
+class VideoGenerationAgent:
+    def __init__(self, service: SceneGenerationService) -> None:
+        self.service = service
+
+    def generate_scene(
+        self,
+        scene: SceneSpec,
+        *,
+        job_id: str,
+        scene_count: int,
+        cancellation_check: Callable[[], bool] | None = None,
+    ) -> SceneSpec:
+        return self.service.generate_scene(
+            scene,
+            job_id=job_id,
+            scene_count=scene_count,
+            cancellation_check=cancellation_check,
+        )
+
+
+__all__ = ["VideoGenerationAgent"]

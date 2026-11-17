@@ -615,3 +615,48 @@ __all__ = [
     "build_scene_timeline",
     "validate_duration_bounds",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Provider/runtime duration helpers
+#
+# These helpers are used by media validation and provider adapters. They are
+# independent of the planning timeline above and never become a source of
+# verified narration timing.
+# ---------------------------------------------------------------------------
+
+
+def closest_supported_duration(
+    requested_seconds: float,
+    supported_seconds: list[float] | tuple[float, ...] | None,
+) -> float | None:
+    """Map a target to the nearest explicitly supported provider duration."""
+
+    if requested_seconds <= 0:
+        raise ValueError("requested_seconds must be positive")
+    if not supported_seconds:
+        return None
+    return min(
+        (float(value) for value in supported_seconds),
+        key=lambda value: (abs(value - requested_seconds), value),
+    )
+
+
+def within_duration_range(
+    value_seconds: float,
+    minimum_seconds: float,
+    maximum_seconds: float,
+    *,
+    tolerance_seconds: float = 0.0,
+) -> bool:
+    """Return whether ``value_seconds`` lies in the inclusive duration range."""
+
+    if minimum_seconds > maximum_seconds:
+        raise ValueError("minimum_seconds must not exceed maximum_seconds")
+    if tolerance_seconds < 0:
+        raise ValueError("tolerance_seconds must be non-negative")
+    return (
+        minimum_seconds - tolerance_seconds
+        <= value_seconds
+        <= maximum_seconds + tolerance_seconds
+    )

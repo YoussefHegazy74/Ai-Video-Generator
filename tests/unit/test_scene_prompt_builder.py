@@ -35,7 +35,7 @@ from ai_video_generator.models.base import ContractError
 from ai_video_generator.models.scene import SceneScript
 from ai_video_generator.models.source import SourceExcerpt
 from ai_video_generator.models.visual_plan import VisualItem, VisualPlan
-from ai_video_generator.video.scene_contract import ScenePackage
+from ai_video_generator.video.generation_contract import ScenePackage
 from ai_video_generator.video.scene_timing import (
     DurationLimits,
     SceneTimeline,

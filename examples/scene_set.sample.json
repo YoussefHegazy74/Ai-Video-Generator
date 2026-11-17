@@ -1,0 +1,104 @@
+{
+  "schema_version": "1.0",
+  "project_id": "fractions-demo",
+  "course_title": "Adding Fractions",
+  "expected_style": "clean_whiteboard",
+  "scenes": [
+    {
+      "schema_version": "1.0",
+      "scene_id": "fractions-intro",
+      "scene_index": 0,
+      "title": "What Is a Fraction?",
+      "learning_objective": "Explain the numerator and denominator of a fraction.",
+      "section_title": "Fractions",
+      "source_references": [
+        {
+          "document_id": "demo-fractions",
+          "page_numbers": [1],
+          "reference": "Demo source"
+        }
+      ],
+      "narration": "Welcome to fractions. A fraction represents a part of a whole. The top number is the numerator, and the bottom number is the denominator.",
+      "visual": {
+        "whiteboard_style": "clean_whiteboard",
+        "background_color": "#F8FAFC",
+        "accent_color": "#2563EB",
+        "instructions": [
+          "Write the fraction one half and label its numerator and denominator.",
+          "Draw a circle split into two equal parts with one part shaded."
+        ],
+        "text_elements": [
+          {
+            "text": "1/2",
+            "kind": "equation",
+            "emphasis": true
+          },
+          {
+            "text": "Numerator: top number",
+            "kind": "body"
+          },
+          {
+            "text": "Denominator: bottom number",
+            "kind": "body"
+          }
+        ],
+        "drawing_steps": [
+          "Draw a circle and divide it into two equal parts.",
+          "Shade one part.",
+          "Write 1/2 and label both numbers."
+        ],
+        "show_scene_title": true,
+        "allow_presenter": false
+      },
+      "target_duration_seconds": 11.0
+    },
+    {
+      "schema_version": "1.0",
+      "scene_id": "fractions-addition",
+      "scene_index": 1,
+      "title": "Adding Like Fractions",
+      "learning_objective": "Add fractions that share the same denominator.",
+      "section_title": "Fractions",
+      "source_references": [
+        {
+          "document_id": "demo-fractions",
+          "page_numbers": [2],
+          "reference": "Demo source"
+        }
+      ],
+      "narration": "To add fractions with the same denominator, add the numerators and keep the denominator unchanged. For example, one fifth plus two fifths equals three fifths.",
+      "visual": {
+        "whiteboard_style": "clean_whiteboard",
+        "background_color": "#F8FAFC",
+        "accent_color": "#2563EB",
+        "instructions": [
+          "Show the worked example one fifth plus two fifths equals three fifths.",
+          "Keep the denominator visible and unchanged."
+        ],
+        "text_elements": [
+          {
+            "text": "1/5 + 2/5 = 3/5",
+            "kind": "equation",
+            "emphasis": true
+          },
+          {
+            "text": "Add the numerators.",
+            "kind": "body"
+          },
+          {
+            "text": "Keep the denominator.",
+            "kind": "body"
+          }
+        ],
+        "drawing_steps": [
+          "Write the original expression.",
+          "Highlight the numerators.",
+          "Write the simplified result."
+        ],
+        "show_scene_title": true,
+        "allow_presenter": false
+      },
+      "target_duration_seconds": 13.0
+    }
+  ]
+}

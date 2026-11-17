@@ -27,7 +27,7 @@ from ai_video_generator.models.visual_plan import (
     VisualItem,
     VisualPlan,
 )
-from ai_video_generator.video.scene_contract import (
+from ai_video_generator.video.generation_contract import (
     SCENE_PACKAGE_SCHEMA_VERSION,
     SUPPORTED_SCENE_PACKAGE_SCHEMA_VERSIONS,
     ScenePackage,

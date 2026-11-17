@@ -1,10 +1,35 @@
-"""Video assembly agent.
+"""Thin assembly agent over :class:`VideoAssemblyService`."""
 
-Responsibility: join validated scenes in order, apply transitions, titles, and
-intro/outro material, keep audio levels consistent, and attach final metadata.
-Workflow: final stage after all scenes pass validation.
-Inputs: ordered validated scene artifacts and assembly options (future).
-Outputs: the assembled long-form video and output metadata (future).
-Interacts with: validation agent, video assembly helpers, storage, and artifact registry.
-No agent implementation or assembly logic is included yet.
-"""
+from __future__ import annotations
+
+from typing import Callable
+
+from ai_video_generator.services.video_assembly_service import (
+    AssemblyResult,
+    ProgressCallback,
+    VideoAssemblyService,
+)
+from ai_video_generator.video.generation_contract import SceneSet
+
+
+class VideoAssemblyAgent:
+    def __init__(self, service: VideoAssemblyService) -> None:
+        self.service = service
+
+    def assemble(
+        self,
+        scene_set: SceneSet,
+        *,
+        job_id: str,
+        progress: ProgressCallback | None = None,
+        cancellation_check: Callable[[], bool] | None = None,
+    ) -> AssemblyResult:
+        return self.service.assemble(
+            scene_set,
+            job_id=job_id,
+            progress=progress,
+            cancellation_check=cancellation_check,
+        )
+
+
+__all__ = ["VideoAssemblyAgent"]
