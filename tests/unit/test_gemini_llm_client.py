@@ -39,6 +39,8 @@ from ai_video_generator.agents.visual_design.schemas import (
 from ai_video_generator.integrations.gemini_llm_client import (
     GeminiLLMClient,
     _sanitize_schema,
+    _supports_temperature,
+    describe_request,
 )
 
 VALID_SCHEMA = {
@@ -62,12 +64,13 @@ class FakeSdkError(Exception):
         code: int,
         message: str = "provider failure",
         status: str | None = None,
+        details: Any | None = None,
     ) -> None:
         super().__init__(message)
         self.code = code
         self.status = status
         self.message = message
-        self.details = {}
+        self.details = details or {}
 
 
 class FakeResponse:
@@ -126,10 +129,10 @@ def _request() -> LLMRequest:
 
 def _client(*outcomes: Any, **kwargs: Any) -> tuple[GeminiLLMClient, FakeSdkClient]:
     sdk = FakeSdkClient(*outcomes)
+    kwargs.setdefault("model", "gemini-3.8-flash")
     return (
         GeminiLLMClient(
             api_key="test-secret-key",
-            model="gemini-test",
             client=sdk,
             **kwargs,
         ),
@@ -147,12 +150,13 @@ def test_generate_returns_validated_json_and_passes_sanitized_schema():
     assert response.model == "gemini-3.8-flash"
     assert len(sdk.models.calls) == 1
     call = sdk.models.calls[0]
-    assert call["model"] == "gemini-test"
+    assert call["model"] == "gemini-3.8-flash"
     assert call["contents"] == "Say ok."
     config = call["config"]
     assert config["system_instruction"] == "Return a test object."
     assert config["response_mime_type"] == "application/json"
-    assert config["temperature"] == 0.1
+    # Gemini 3.8 Flash rejects/ignores sampling parameters.
+    assert "temperature" not in config
     schema = config["response_json_schema"]
     assert schema["type"] == "object"
     assert "answer" in schema["properties"]
@@ -161,6 +165,19 @@ def test_generate_returns_validated_json_and_passes_sanitized_schema():
     assert "additionalProperties" not in schema
     assert "allOf" not in schema
     assert "pattern" not in schema["properties"]["answer"]
+
+
+def test_temperature_is_sent_only_to_legacy_models():
+    assert _supports_temperature("gemini-2.5-flash") is True
+    assert _supports_temperature("gemini-3.8-flash") is False
+    assert _supports_temperature("gemini-4-argon") is False
+    assert _supports_temperature("future-model") is False
+
+    client, sdk = _client(
+        FakeResponse('{"answer": "ok"}'), model="gemini-2.5-flash"
+    )
+    client.generate(_request())
+    assert sdk.models.calls[0]["config"]["temperature"] == 0.1
 
 
 def test_invalid_json_is_rejected_without_a_retry():
@@ -253,6 +270,74 @@ def test_authentication_failure_is_not_retried_and_redacts_the_key():
     assert "Say ok." not in rendered
 
 
+def test_http_400_surfaces_sanitized_provider_details_without_retry():
+    client, sdk = _client(
+        FakeSdkError(
+            400,
+            (
+                'Invalid JSON payload received. Unknown name "temperature" at '
+                "'generation_config': Cannot find field."
+            ),
+            "INVALID_ARGUMENT",
+            details={
+                "error": {
+                    "code": 400,
+                    "message": (
+                        'Invalid JSON payload received. Unknown name '
+                        '"temperature" at generation_config: Cannot find field.'
+                    ),
+                    "status": "INVALID_ARGUMENT",
+                    "details": [
+                        {
+                            "@type": "type.googleapis.com/google.rpc.BadRequest",
+                            "fieldViolations": [
+                                {
+                                    "field": "generation_config.temperature",
+                                    "description": "Cannot find field.",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            },
+        )
+    )
+
+    with pytest.raises(LLMProviderError, match="sampling parameter") as excinfo:
+        client.generate(_request())
+
+    message = str(excinfo.value)
+    details = "\n".join(excinfo.value.details)
+    assert "HTTP 400/INVALID_ARGUMENT" in message
+    assert "Unknown name" in message
+    assert "generation_config.temperature" in details
+    assert "provider_reason=INVALID_ARGUMENT" in details
+    assert "provider_field=generation_config.temperature" in details
+    assert "model=gemini-3.8-flash" in details
+    assert "schema=TestObject" in details
+    assert "request_parameters=" in details
+    assert "test-secret-key" not in message + details
+    assert "Say ok." not in message + details
+    assert len(sdk.models.calls) == 1
+
+
+def test_http_400_api_key_failure_is_actionable_and_not_retried():
+    client, sdk = _client(
+        FakeSdkError(
+            400,
+            "API key not valid. Please pass a valid API key.",
+            "INVALID_ARGUMENT",
+        )
+    )
+
+    with pytest.raises(LLMProviderError, match="API_KEY_INVALID") as excinfo:
+        client.generate(_request())
+
+    assert "GEMINI_API_KEY" in str(excinfo.value)
+    assert "test-secret-key" not in str(excinfo.value)
+    assert len(sdk.models.calls) == 1
+
+
 def test_invalid_request_is_not_retried():
     client, sdk = _client(FakeSdkError(400, "bad schema", "INVALID_ARGUMENT"))
 
@@ -320,6 +405,55 @@ def test_script_and_whiteboard_agents_use_the_production_adapter(
     assert len(sdk.models.calls) == 2
     assert sdk.models.calls[0]["config"]["response_json_schema"]["properties"]
     assert sdk.models.calls[1]["config"]["response_json_schema"]["properties"]
+
+
+def test_smoke_request_configuration_omits_sampling_parameters():
+    schema = {
+        "type": "object",
+        "properties": {
+            "status": {"type": "string", "enum": ["ok"]},
+            "message": {"type": "string"},
+        },
+        "required": ["status", "message"],
+    }
+    client, sdk = _client(
+        FakeResponse('{"status": "ok", "message": "structured output works"}'),
+        max_output_tokens=1024,
+    )
+
+    response = client.generate(
+        LLMRequest(
+            system_prompt="Return only JSON.",
+            user_prompt="Return status ok.",
+            response_schema_name="LLMSmokeResult",
+            response_schema=schema,
+            temperature=0.0,
+            metadata={"agent": "llm_smoke_test"},
+        )
+    )
+
+    assert response.content == '{"status": "ok", "message": "structured output works"}'
+    config = sdk.models.calls[0]["config"]
+    assert "temperature" not in config
+    assert config["response_mime_type"] == "application/json"
+    assert config["response_json_schema"]["required"] == ["status", "message"]
+    assert config["max_output_tokens"] == 1024
+
+
+def test_describe_request_is_safe_and_model_aware():
+    info = describe_request(_request(), model="gemini-3.8-flash")
+
+    assert info["model"] == "gemini-3.8-flash"
+    assert info["temperature_included"] is False
+    assert "temperature" not in info["request_parameters"]
+    assert info["response_schema_name"] == "TestObject"
+    rendered = json.dumps(info)
+    assert "Say ok." not in rendered
+    assert "Return a test object." not in rendered
+
+    legacy = describe_request(_request(), model="gemini-2.5-flash")
+    assert legacy["temperature_included"] is True
+    assert "temperature" in legacy["request_parameters"]
 
 
 def test_all_agent_schemas_sanitize_to_valid_gemini_subset():

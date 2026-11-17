@@ -132,7 +132,7 @@ Important defaults:
 | Area | Default |
 | --- | --- |
 | Provider | `deterministic_whiteboard` (local, no credentials) |
-| Planning LLM | `gemini` / `gemini-3.8-flash`, temperature 0.2, 3 bounded retries |
+| Planning LLM | `gemini` / `gemini-3.8-flash`, 3 bounded retries; temperature is omitted for Gemini 3.6+/4 |
 | Planning scene duration | 5-120 s per scene |
 | Validation scene duration | 5-120 s per scene; 1.5 s warning / 3 s failure drift |
 | Validation minimums | 640x360, 8 fps, audio required |
@@ -200,6 +200,7 @@ between work units), `--plain-logs`, and `--log-level`.
 ```bash
 export GEMINI_API_KEY=...
 python scripts/llm_smoke_test.py --json
+python scripts/llm_smoke_test.py --show-request --json   # safe request diagnostics
 ```
 
 This sends one minimal structured-output request and validates the response. It
@@ -259,6 +260,10 @@ synthetic clips, and a full lesson-pipeline run through real FFmpeg assembly.
 - The Gemini planning adapter is implemented but has not been exercised against
   the live API in this environment. Its schema compatibility with the current
   Gemini structured-output API is unverified beyond local JSON Schema checks.
+- Gemini 3.6+ and Gemini 4 ignore or reject `temperature`/`top_p`/`top_k`. The
+  adapter omits temperature for those models and sends it only to known legacy
+  families. If a provider rejects another field, the smoke test now prints the
+  sanitized provider message, reason, and invalid field.
 - The default LLM model (`gemini-3.8-flash`) and schema subset may need updating
   as Gemini model and JSON Schema support evolve; both are configurable.
 - LLM retries are per-call only. Cross-scene planning is not resumable, and no

@@ -53,11 +53,15 @@ lesson or generate video and may incur provider charges.
 ```bash
 export GEMINI_API_KEY=...
 python scripts/llm_smoke_test.py --json
+python scripts/llm_smoke_test.py --show-request --json
 python scripts/llm_smoke_test.py --model gemini-3.8-flash --plain-logs
 ```
 
-Exit code `0` on a valid response, `1` on configuration, provider, or format
-failure. This command is never part of the automated test suite.
+`--show-request` prints safe effective-request diagnostics (model, parameter
+names, schema size, prompt lengths) without prompts or credentials. HTTP 4xx
+failures print the sanitized provider message, status/reason, and invalid field
+when reported. Exit code `0` on a valid response, `1` on configuration, provider,
+or format failure. This command is never part of the automated test suite.
 
 ## `run_pipeline.py`
 

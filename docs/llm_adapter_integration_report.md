@@ -67,9 +67,9 @@ artifact directory is unchanged.
 - `src/ai_video_generator/integrations/gemini_llm_client.py` - adapter, schema
   filtering, retries, error mapping, structured-output validation.
 - `scripts/llm_smoke_test.py` - optional one-request live smoke command.
-- `tests/unit/test_gemini_llm_client.py` - 14 deterministic adapter/agent tests.
+- `tests/unit/test_gemini_llm_client.py` - 19 deterministic adapter/agent tests.
 - `tests/unit/test_config_integration.py` gains 5 configuration/factory tests
-  (19 new tests total over the 297-test baseline).
+  (24 new tests total over the 297-test baseline).
 - `docs/llm_adapter_integration_report.md` - this report.
 
 **Modified**
@@ -161,7 +161,7 @@ google-genai 2.34.0 installed but no credentials):
 
 ```text
 $ python -m pytest -q
-316 passed in 12.21s
+321 passed in 12.77s
 ```
 
 New deterministic coverage (fake SDK at the network boundary, no paid calls):
@@ -190,7 +190,8 @@ section 9.
 
 ## 8. Live smoke-test status
 
-**Not executed.** No `GEMINI_API_KEY` is configured in this environment.
+**Not executed.** No `GEMINI_API_KEY` is configured in this environment. See
+section 11 for the HTTP 400 investigation and the new diagnostics.
 
 The command exists:
 
@@ -209,7 +210,7 @@ must be recorded manually after running the command with a real key.
 ## 9. Verification commands
 
 ```text
-python -m pytest -q                               316 passed in 12.21s
+python -m pytest -q                               321 passed in 12.77s
 python -m compileall -q src tests examples scripts  passed
 import walk of all package modules                 passed
 git diff --check                                   passed
@@ -233,3 +234,118 @@ python scripts/llm_smoke_test.py --json            exit 1, missing credentials (
 - One provider only. Another provider requires a new `LLMClient` implementation
   and a factory branch, with no agent changes.
 - The smoke test is paid and must be run deliberately.
+
+
+## 11. HTTP 400 debugging fix (2026-11-17)
+
+### 11.1 Reproduction and request inspection
+
+The reported live smoke call used `gemini-3.8-flash` with a trivial schema and
+returned HTTP 400 `INVALID_ARGUMENT`. The automation environment has no
+`GEMINI_API_KEY`, so the provider's response body could not be captured here. The
+pre-fix adapter also replaced the provider message with a fixed 400 message,
+which is why the report showed only "schema or prompt may use an unsupported
+shape".
+
+The exact SDK request was captured without a network call by replacing the SDK
+transport with a recorder. The body contained:
+
+```json
+{
+  "contents": [{"role": "user", "parts": [{"text": "<user prompt>"}]}],
+  "systemInstruction": {"role": "user", "parts": [{"text": "<system prompt>"}]},
+  "generationConfig": {
+    "temperature": 0.0,
+    "maxOutputTokens": 1024,
+    "responseMimeType": "application/json",
+    "responseJsonSchema": {
+      "type": "object",
+      "properties": {
+        "status": {"type": "string", "enum": ["ok"]},
+        "message": {"type": "string"}
+      },
+      "required": ["status", "message"]
+    }
+  }
+}
+```
+
+Verified facts:
+
+- The model ID `gemini-3.8-flash` is a current stable Gemini model and supports
+  structured outputs.
+- The smoke schema is a valid, minimal JSON Schema; it contains no `$ref`,
+  `$defs`, `allOf`, `not`, or `additionalProperties`.
+- `responseMimeType`/`responseJsonSchema` are supported request fields.
+- The request always included `temperature`, which is the one field documented as
+  deprecated and rejected/ignored for Gemini 3.6+ and Gemini 4. Google's Gemini
+  3.8 migration guide instructs callers to remove `temperature`, `top_p`, and
+  `top_k`; unsupported legacy fields cause immediate 400s.
+
+### 11.2 Root cause and fix
+
+**Root cause (request-level):** the adapter unconditionally sent
+`temperature` to a model family that rejects/ignores sampling parameters.
+
+**Fix:** `_supports_temperature(model)` now sends `temperature` only for
+explicitly known legacy families (`gemini-1.5-*`, `gemini-2.0-*`,
+`gemini-2.5-*`). Gemini 3.6+/4 and unknown/newer model names get a request
+without sampling parameters. `LLMRequest.temperature` and agent interfaces are
+unchanged; local schema validation and agent semantic validation are unchanged.
+HTTP 400 is still never retried.
+
+If the next live run's sanitized provider message is not about temperature, the
+new diagnostics identify the actual field instead of hiding it.
+
+### 11.3 Sanitized provider diagnostics
+
+HTTP 400 failures now preserve and surface:
+
+- provider error code and status;
+- bounded, single-line provider message with the API key redacted;
+- `ErrorInfo.reason` and `BadRequest.fieldViolations[].field` when present;
+- model identifier;
+- effective request parameter names;
+- response schema name/property count/size and prompt character counts only.
+
+Prompts, documents, API keys, and authorization headers are never included.
+Logs contain status/reason/field/parameter names, not the provider message or
+prompt text.
+
+Example of the new sanitized shape (synthetic values, not the user's provider
+response):
+
+```text
+Gemini rejected a sampling parameter (HTTP 400/INVALID_ARGUMENT). Gemini 3.6+
+and Gemini 4 ignore or reject temperature, top_p, and top_k; this adapter omits
+them for those models. No automatic retry was attempted.
+Provider message: Invalid JSON payload received. Unknown name "temperature" at
+'generation_config': Cannot find field. Reason: INVALID_ARGUMENT.
+Invalid field: generation_config.temperature.
+```
+
+The actual provider message from the reported failure is still unavailable
+because no valid key exists in this environment. Re-run:
+
+```bash
+python scripts/llm_smoke_test.py --show-request --json --plain-logs
+```
+
+The first JSON object shows the effective request (now without temperature); if
+the call still fails, the error object now contains `provider_message`,
+`provider_reason`, `provider_field`, `request_parameters`, and `schema_summary`.
+
+### 11.4 Regression tests added
+
+- Gemini 3.8/4 omit `temperature`; legacy 2.5 sends it.
+- Smoke request configuration has no sampling parameters but keeps JSON MIME,
+  schema, and output budget.
+- HTTP 400 preserves sanitized provider message, reason, field, model, request
+  parameters, and schema metadata.
+- API-key-invalid 400 gives an actionable `GEMINI_API_KEY` message and no retry.
+- Generic 400 remains non-retryable.
+- Safe `describe_request` output excludes prompt text and reports the effective
+  parameter set for both new and legacy models.
+
+Full suite after the fix: **321 passed** (24 new tests over the 297-test
+integration baseline). Live verification remains pending due to the missing key.

@@ -44,6 +44,8 @@ generation:
 llm:
   provider: gemini
   model: gemini-3.8-flash
+  # Gemini 3.6+ and Gemini 4 ignore or reject sampling parameters. The adapter
+  # sends temperature only to explicitly known legacy model families.
   temperature: 0.2
   max_attempts: 3
   backoff_base_seconds: 1.0

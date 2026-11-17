@@ -43,6 +43,7 @@ from ai_video_generator.core.logging import configure_logging, get_logger  # noq
 from ai_video_generator.core.settings import load_settings  # noqa: E402
 from ai_video_generator.integrations.gemini_llm_client import (  # noqa: E402
     GeminiLLMClient,
+    describe_request,
 )
 
 logger = get_logger(__name__)
@@ -83,6 +84,14 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--plain-logs", action="store_true", help="Disable JSON logs"
     )
+    parser.add_argument(
+        "--show-request",
+        action="store_true",
+        help=(
+            "Print safe request diagnostics (model, parameter names, schema "
+            "size); never prints prompts or credentials"
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -91,6 +100,23 @@ def main(argv: list[str] | None = None) -> int:
     try:
         settings = load_settings(config_dir=args.config_dir)
         configure_logging(settings.log_level, json_logs=not args.plain_logs)
+        model = args.model or settings.llm.model
+        request = LLMRequest(
+            system_prompt=SMOKE_SYSTEM_PROMPT,
+            user_prompt=SMOKE_USER_PROMPT,
+            response_schema_name="LLMSmokeResult",
+            response_schema=SMOKE_SCHEMA,
+            temperature=0.0,
+            metadata={"agent": "llm_smoke_test"},
+        )
+        if args.show_request:
+            print(
+                json.dumps(
+                    describe_request(request, model=model),
+                    indent=None if args.json else 2,
+                    ensure_ascii=False,
+                )
+            )
         api_key = (
             settings.provider.gemini_api_key.get_secret_value()
             if settings.provider.gemini_api_key is not None
@@ -98,25 +124,16 @@ def main(argv: list[str] | None = None) -> int:
         )
         client = GeminiLLMClient(
             api_key=api_key,
-            model=args.model or settings.llm.model,
+            model=model,
             max_attempts=settings.llm.max_attempts,
             timeout_seconds=settings.llm.timeout_seconds,
-            max_output_tokens=min(settings.llm.max_output_tokens, 1024),
+            max_output_tokens=min(settings.llm.max_output_tokens, 2048),
             backoff_base_seconds=settings.llm.backoff_base_seconds,
             backoff_max_seconds=settings.llm.backoff_max_seconds,
             backoff_jitter_seconds=settings.llm.backoff_jitter_seconds,
         )
         started = time.monotonic()
-        response = client.generate(
-            LLMRequest(
-                system_prompt=SMOKE_SYSTEM_PROMPT,
-                user_prompt=SMOKE_USER_PROMPT,
-                response_schema_name="LLMSmokeResult",
-                response_schema=SMOKE_SCHEMA,
-                temperature=0.0,
-                metadata={"agent": "llm_smoke_test"},
-            )
-        )
+        response = client.generate(request)
         payload = parse_json_object(response.content)
         if payload.get("status") != "ok" or not payload.get("message"):
             raise ValueError(

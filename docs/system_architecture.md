@@ -160,6 +160,10 @@ or resumable.
 - Planning LLM calls retry only timeouts, connection failures, rate limits, and
   transient 5xx statuses, up to `llm.max_attempts`. Authentication and invalid
   requests are never retried, and the SDK retry loop is disabled.
+- Gemini 3.6+/4 reject or ignore sampling parameters; the adapter omits
+  temperature for those models and preserves sanitized provider 400 details
+  (message, reason, invalid field, request parameter names) without logging
+  prompts or keys.
 - Provider failures are retried only when marked retryable, with bounded
   exponential backoff and jitter.
 - Validation can request regeneration only through explicitly retryable blocking

@@ -105,7 +105,7 @@ adapter and a real lesson planner to run from a document.
 
 ## Verification baseline
 
-- `python -m pytest -q` from the repository root: 316 tests, no network or paid
+- `python -m pytest -q` from the repository root: 321 tests, no network or paid
   calls (FFmpeg-dependent tests skip when the tools are absent).
 - `python scripts/check_environment.py --json`: local media/TTS capability report
   without a paid Gemini call.

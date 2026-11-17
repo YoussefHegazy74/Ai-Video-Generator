@@ -10,6 +10,7 @@
 
 # Python bytecode and local tooling (the source layout uses Python packages)
 __pycache__/
+*.egg-info/
 *.py[cod]
 .venv/
 venv/

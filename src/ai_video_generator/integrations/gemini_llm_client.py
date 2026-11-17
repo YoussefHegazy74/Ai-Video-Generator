@@ -21,15 +21,22 @@ Provider facts:
   containing only the subset Gemini documents as supported. The project's strict
   contract validators remain authoritative for cross-field rules that JSON Schema
   cannot express.
+- Temperature, top_p, and top_k are deprecated or rejected on Gemini 3.6+ and
+  Gemini 4. This adapter sends temperature only to explicitly known legacy model
+  families; unknown/newer models are treated conservatively.
 - Retries are bounded and only apply to timeouts, connection failures, rate
   limits, and 5xx/transient statuses. Authentication and invalid-request errors
   are never retried. The SDK's own retry loop is explicitly disabled so this
   adapter's budget is exact.
+- HTTP 400 diagnostics preserve the provider code, status, message, reason, and
+  invalid field, plus model, request parameter names, and schema size. Prompts and
+  API keys are never included.
 - Tests inject a fake SDK client, so no network call is required by the suite.
 """
 
 from __future__ import annotations
 
+import json
 import random
 import time
 from dataclasses import dataclass
@@ -83,6 +90,17 @@ _RETRYABLE_STATUS_NAMES = frozenset(
 _AUTH_STATUS_CODES = frozenset({401, 403})
 _AUTH_STATUS_NAMES = frozenset({"PERMISSION_DENIED", "UNAUTHENTICATED"})
 
+# Gemini 3.6+ and Gemini 4 ignore or reject temperature/top_p/top_k. Only send
+# temperature for explicitly known legacy families; unknown/newer model names
+# are treated conservatively. Temperature remains part of LLMRequest for API
+# compatibility and is still honored for legacy models.
+_TEMPERATURE_SUPPORTED_PREFIXES = (
+    "gemini-1.5-",
+    "gemini-2.0-",
+    "gemini-2.5-",
+)
+_SAMPLING_PARAMETER_MARKERS = ("temperature", "top_p", "top_k", "topk")
+
 
 def _sanitize_schema(value: Any) -> Any:
     """Return the Gemini-compatible subset of a JSON Schema value."""
@@ -115,6 +133,74 @@ class _Failure:
     status_code: int | None
     status: str | None
     message: str
+    provider_message: str | None = None
+    reason: str | None = None
+    field: str | None = None
+
+
+def _supports_temperature(model: str) -> bool:
+    """Return whether temperature is honored by the model.
+
+    Gemini 3.6+ and Gemini 4 models ignore or reject custom sampling parameters.
+    Unknown model names are treated conservatively so new Gemini generations do
+    not start receiving a parameter they may reject.
+    """
+    return model.strip().lower().startswith(_TEMPERATURE_SUPPORTED_PREFIXES)
+
+
+def _safe_provider_text(value: Any, *, api_key: str | None) -> str:
+    text = str(value or "")
+    if api_key:
+        text = text.replace(api_key, "<redacted>")
+    return " ".join(text.split())[:500]
+
+
+def _extract_detail_facts(details: Any) -> tuple[str | None, str | None, str | None]:
+    """Extract safe gRPC/HTTP error facts without retaining the raw payload."""
+    reason: str | None = None
+    field: str | None = None
+    message: str | None = None
+
+    def walk(node: Any) -> None:
+        nonlocal reason, field, message
+        if isinstance(node, Mapping):
+            if message is None:
+                candidate = node.get("message")
+                if isinstance(candidate, str) and candidate.strip():
+                    message = candidate
+            if reason is None:
+                candidate = node.get("reason")
+                if isinstance(candidate, str) and candidate.strip():
+                    reason = candidate
+            for key in ("fieldViolations", "field_violations"):
+                violations = node.get(key)
+                if isinstance(violations, list):
+                    for violation in violations:
+                        if not isinstance(violation, Mapping):
+                            continue
+                        if field is None:
+                            field_name = violation.get("field")
+                            if isinstance(field_name, str) and field_name.strip():
+                                field = field_name
+                        if message is None:
+                            description = violation.get("description")
+                            if (
+                                isinstance(description, str)
+                                and description.strip()
+                            ):
+                                message = description
+            if field is None:
+                field_name = node.get("field")
+                if isinstance(field_name, str) and field_name.strip():
+                    field = field_name
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(details)
+    return reason, field, message
 
 
 def _failure_for(exc: BaseException, *, api_key: str | None) -> _Failure:
@@ -122,60 +208,115 @@ def _failure_for(exc: BaseException, *, api_key: str | None) -> _Failure:
     code = raw_code if isinstance(raw_code, int) else None
     raw_status = getattr(exc, "status", None)
     status = str(raw_status).upper() if raw_status else None
-    provider_message = str(getattr(exc, "message", "") or exc)
-    if api_key:
-        provider_message = provider_message.replace(api_key, "<redacted>")
-    provider_message = provider_message.splitlines()[0][:300]
+    raw_details = getattr(exc, "details", None)
+    reason, field, detail_message = _extract_detail_facts(raw_details)
+    if reason is None:
+        reason = status
+    provider_message = _safe_provider_text(
+        getattr(exc, "message", None) or detail_message or exc,
+        api_key=api_key,
+    )
     error_type = type(exc).__name__
+
+    def with_provider(message: str) -> str:
+        if provider_message:
+            message += f" Provider message: {provider_message}"
+        if reason:
+            message += f" Reason: {reason}."
+        if field:
+            message += f" Invalid field: {field}."
+        return message
 
     if code in _AUTH_STATUS_CODES or status in _AUTH_STATUS_NAMES:
         return _Failure(
             retryable=False,
             status_code=code,
             status=status,
-            message=(
+            message=with_provider(
                 "Gemini authentication failed. Verify GEMINI_API_KEY and API "
                 "access for the configured model."
             ),
+            provider_message=provider_message or None,
+            reason=reason,
+            field=field,
         )
     if code == 429 or status == "RESOURCE_EXHAUSTED":
         return _Failure(
             retryable=True,
             status_code=code,
             status=status,
-            message="Gemini rate limit or quota exceeded.",
+            message=with_provider("Gemini rate limit or quota exceeded."),
+            provider_message=provider_message or None,
+            reason=reason,
+            field=field,
         )
     if code in _RETRYABLE_STATUS_CODES or (code is not None and code >= 500):
         return _Failure(
             retryable=True,
             status_code=code,
             status=status,
-            message="Gemini service is temporarily unavailable.",
+            message=with_provider(
+                "Gemini service is temporarily unavailable."
+            ),
+            provider_message=provider_message or None,
+            reason=reason,
+            field=field,
         )
     if status in _RETRYABLE_STATUS_NAMES:
         return _Failure(
             retryable=True,
             status_code=code,
             status=status,
-            message="Gemini service is temporarily unavailable.",
+            message=with_provider(
+                "Gemini service is temporarily unavailable."
+            ),
+            provider_message=provider_message or None,
+            reason=reason,
+            field=field,
         )
     if isinstance(exc, (TimeoutError, ConnectionError)):
         return _Failure(
             retryable=True,
             status_code=code,
             status=status,
-            message="Gemini request timed out or the connection failed.",
+            message=with_provider(
+                "Gemini request timed out or the connection failed."
+            ),
+            provider_message=provider_message or None,
+            reason=reason,
+            field=field,
         )
     if code == 400 or status == "INVALID_ARGUMENT":
+        lowered = provider_message.lower()
+        if "api key" in lowered or "api_key" in lowered:
+            message = (
+                "Gemini rejected the API key (HTTP 400/API_KEY_INVALID). Verify "
+                "that GEMINI_API_KEY is valid, unrestricted, and belongs to a "
+                "project with access to the configured model. No automatic retry "
+                "was attempted."
+            )
+        elif any(marker in lowered for marker in _SAMPLING_PARAMETER_MARKERS):
+            message = (
+                "Gemini rejected a sampling parameter (HTTP "
+                "400/INVALID_ARGUMENT). Gemini 3.6+ and Gemini 4 ignore or "
+                "reject temperature, top_p, and top_k; this adapter omits them "
+                "for those models. No automatic retry was attempted."
+            )
+        else:
+            message = (
+                "Gemini rejected the structured-output request (HTTP "
+                "400/INVALID_ARGUMENT). The response schema, request "
+                "parameters, or prompt may use an unsupported shape. No "
+                "automatic retry was attempted."
+            )
         return _Failure(
             retryable=False,
             status_code=code,
             status=status,
-            message=(
-                "Gemini rejected the structured-output request "
-                "(HTTP 400/INVALID_ARGUMENT). The response schema or prompt may "
-                "use an unsupported shape; no automatic retry was attempted."
-            ),
+            message=with_provider(message),
+            provider_message=provider_message or None,
+            reason=reason,
+            field=field,
         )
     lowered = error_type.lower()
     retryable = "timeout" in lowered or "connect" in lowered
@@ -183,10 +324,10 @@ def _failure_for(exc: BaseException, *, api_key: str | None) -> _Failure:
         retryable=retryable,
         status_code=code,
         status=status,
-        message=(
-            f"Gemini request failed ({error_type})."
-            + (f" Provider message: {provider_message}" if provider_message else "")
-        ),
+        message=with_provider(f"Gemini request failed ({error_type})."),
+        provider_message=provider_message or None,
+        reason=reason,
+        field=field,
     )
 
 
@@ -213,6 +354,37 @@ def _schema_path(parts: Any) -> str:
         else:
             path += f".{part}"
     return path
+
+
+def describe_request(request: LLMRequest, *, model: str) -> dict[str, Any]:
+    """Return safe request diagnostics without prompts, keys, or full schemas.
+
+    This is intentionally independent of credentials so support tooling can show
+    the effective provider configuration before attempting a live call.
+    """
+    if not isinstance(request, LLMRequest):
+        raise TypeError("request must be an LLMRequest")
+    schema = _sanitize_schema(dict(request.response_schema))
+    temperature_included = _supports_temperature(model)
+    parameters = [
+        "system_instruction",
+        "response_mime_type",
+        "response_json_schema",
+        "max_output_tokens",
+    ]
+    if temperature_included:
+        parameters.append("temperature")
+    return {
+        "provider": PROVIDER_ID,
+        "model": model,
+        "response_schema_name": request.response_schema_name,
+        "request_parameters": parameters,
+        "temperature_included": temperature_included,
+        "schema_properties": len(schema.get("properties", {})),
+        "schema_chars": len(json.dumps(schema, separators=(",", ":"))),
+        "system_prompt_chars": len(request.system_prompt),
+        "user_prompt_chars": len(request.user_prompt),
+    }
 
 
 class GeminiLLMClient:
@@ -289,6 +461,10 @@ class GeminiLLMClient:
         """Construct the SDK client if needed without making a model call."""
         self._ensure_client()
 
+    def describe_request(self, request: LLMRequest) -> dict[str, Any]:
+        """Return safe, non-sensitive diagnostics for the effective request."""
+        return describe_request(request, model=self.model)
+
     def _ensure_client(self) -> Any:
         if self._client is not None:
             return self._client
@@ -343,9 +519,24 @@ class GeminiLLMClient:
             "system_instruction": request.system_prompt,
             "response_mime_type": "application/json",
             "response_json_schema": schema,
-            "temperature": request.temperature,
             "max_output_tokens": self.max_output_tokens,
         }
+        sampling_parameters_sent = _supports_temperature(self.model)
+        if sampling_parameters_sent:
+            config["temperature"] = request.temperature
+        else:
+            logger.debug(
+                "Omitting temperature for a model that does not support "
+                "sampling parameters",
+                extra={"provider": self.provider, "model": self.model},
+            )
+        request_parameters = tuple(
+            sorted(key for key in config if key != "system_instruction")
+        )
+        schema_summary = (
+            f"properties={len(schema.get('properties', {}))},"
+            f"chars={len(json.dumps(schema, separators=(',', ':')))}"
+        )
         agent = request.metadata.get("agent", "unknown")
         started = time.monotonic()
 
@@ -373,6 +564,7 @@ class GeminiLLMClient:
                         "attempt": attempt,
                         "duration_ms": elapsed_ms,
                         "schema": request.response_schema_name,
+                        "sampling_parameters_sent": sampling_parameters_sent,
                     },
                 )
                 model_name = (
@@ -411,6 +603,11 @@ class GeminiLLMClient:
                             "status_code": failure.status_code,
                             "status": failure.status,
                             "error_type": type(exc).__name__,
+                            "provider_reason": failure.reason,
+                            "provider_field": failure.field,
+                            "request_parameters": ",".join(request_parameters),
+                            "schema": request.response_schema_name,
+                            "schema_summary": schema_summary,
                         },
                     )
                     raise LLMProviderError(
@@ -430,6 +627,27 @@ class GeminiLLMClient:
                                 if failure.status is None
                                 else (f"status={failure.status}",)
                             ),
+                            *(
+                                ()
+                                if failure.reason is None
+                                else (f"provider_reason={failure.reason}",)
+                            ),
+                            *(
+                                ()
+                                if failure.field is None
+                                else (f"provider_field={failure.field}",)
+                            ),
+                            *(
+                                ()
+                                if failure.provider_message is None
+                                else (
+                                    "provider_message="
+                                    + failure.provider_message,
+                                )
+                            ),
+                            f"request_parameters={','.join(request_parameters)}",
+                            f"schema={request.response_schema_name}",
+                            f"schema_summary={schema_summary}",
                         ),
                     ) from exc
                 delay = self._backoff_delay(attempt)
@@ -443,6 +661,7 @@ class GeminiLLMClient:
                         "max_attempts": self.max_attempts,
                         "status_code": failure.status_code,
                         "status": failure.status,
+                        "provider_reason": failure.reason,
                         "retry_in_seconds": round(delay, 3),
                     },
                 )
@@ -483,4 +702,5 @@ __all__ = [
     "DEFAULT_MODEL",
     "GeminiLLMClient",
     "PROVIDER_ID",
+    "describe_request",
 ]
