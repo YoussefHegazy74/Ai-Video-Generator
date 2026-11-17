@@ -68,7 +68,12 @@ construct absolute paths.
 - `deterministic_whiteboard_provider.py`: default local renderer.
 - `gemini_omni_provider.py`: optional real AI adapter.
 - `narration_synthesizer.py`: local Windows SAPI and FFmpeg `flite` adapters.
-- `provider_factory.py`: configuration-driven construction.
+- `gemini_llm_client.py`: production structured-output LLM adapter implementing
+  the planning ``LLMClient`` protocol; lazy SDK import, JSON Schema validation,
+  bounded retries, credential redaction.
+- `llm_provider.py`: stable re-export of the LLM boundary and adapter.
+- `provider_factory.py`: configuration-driven construction of video providers,
+  narrators, and the LLM client.
 - `storage_provider.py`: storage Protocol.
 
 ### Planning agents
@@ -104,10 +109,12 @@ Precedence: model defaults < `config/settings.yaml` <
 `config/video_generation.yaml` < `AIVG_*` environment variables. Relative paths
 resolve against the repository root, not the current working directory.
 
-`GEMINI_API_KEY` is the only credential read. It is stored in a Pydantic
-`SecretStr` with `exclude=True` and `repr=False`, is absent from `model_dump()` and
+`GEMINI_API_KEY` is the only credential read, shared by the paid video provider
+and the planning LLM adapter. It is stored in a Pydantic `SecretStr` with
+`exclude=True` and `repr=False`, is absent from `model_dump()` and
 `public_dict()`, and is never logged. Provider metadata and failure details also
-redact secret-like keys.
+redact secret-like keys. LLM selection, model, temperature, timeout, output
+budget, and retry policy live under `llm.*` and `AIVG_LLM_*`.
 
 ## Persistence and artifacts
 
@@ -150,6 +157,9 @@ or resumable.
 ## Failure handling and idempotency
 
 - Expected failures use typed exceptions with stable codes and sanitized details.
+- Planning LLM calls retry only timeouts, connection failures, rate limits, and
+  transient 5xx statuses, up to `llm.max_attempts`. Authentication and invalid
+  requests are never retried, and the SDK retry loop is disabled.
 - Provider failures are retried only when marked retryable, with bounded
   exponential backoff and jitter.
 - Validation can request regeneration only through explicitly retryable blocking

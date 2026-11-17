@@ -14,7 +14,7 @@ python -m pytest -q
 
 `pytest` may not be on `PATH` in this environment; `python -m pytest` is the
 supported command. The last verified run on Linux (Python 3.14.4, FFmpeg 8.0.1)
-was **297 passed** in about 15 seconds. FFmpeg/FFprobe must be available for media
+was **316 passed** in about 12 seconds. FFmpeg/FFprobe must be available for media
 tests; when they are absent, those tests skip with an explicit prerequisite
 message.
 
@@ -32,6 +32,9 @@ message.
     handoff, and failure propagation.
   - `test_config_integration.py`: shipped config, environment overrides, factory
     wiring, invalid bounds, and missing Gemini credentials.
+  - `test_gemini_llm_client.py`: structured-output success, malformed/schema
+    failures, retry and no-retry paths, credential redaction, missing SDK/key,
+    schema sanitization, and both agents through the production adapter.
   - `test_scene_contract.py`: schema invariants, transitions, artifact-key
     validation, secret redaction, ordering.
   - `test_settings.py`: YAML/env precedence, path resolution, secret exclusion,

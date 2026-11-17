@@ -9,6 +9,11 @@
 **Status:** integrated and tested on the integration branch. The branch is pushed
 without merging or pushing `main`.
 
+> **Historical note:** this report records the full-team merge. The production
+> Gemini LLM adapter added afterwards is documented in
+> [`llm_adapter_integration_report.md`](llm_adapter_integration_report.md); the
+> "no live LLM adapter" items below describe the state at merge time.
+
 This report distinguishes **verified** results (commands run in this environment)
 from **assumptions** and **open decisions**. No live LLM, Gemini, or paid API call
 was made.

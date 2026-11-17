@@ -11,6 +11,12 @@ orchestration:
   max_validation_attempts: 2
   cancellation: cooperative-between-work-units
 
+llm:
+  implementation: src/ai_video_generator/integrations/gemini_llm_client.py
+  boundary: injected LLMClient
+  structured_output: Gemini JSON Schema
+  model_and_retries: configured in settings.yaml llm.*
+
 agents:
   script:
     implementation: src/ai_video_generator/agents/scripting/script_agent.py

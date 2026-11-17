@@ -129,7 +129,10 @@ trimmed. Overlapping crossfades are intentionally unsupported.
 ## Planning handoff
 
 `agents/orchestration/lesson_pipeline.py` orders the Script, Whiteboard Director,
-Example & Visual, and Scene Packager stages. `agents/orchestration/runtime_adapter.py`
+Example & Visual, and Scene Packager stages. The agents call the injected
+`LLMClient`; the production Gemini adapter is configured under `llm.*` and
+requires `GEMINI_API_KEY`. Pre-generated planning artifacts can replace the live
+planning stages for offline and credential-free runs. `agents/orchestration/runtime_adapter.py`
 then produces the runtime `SceneSet`:
 
 - runtime target duration is the planning timeline's script estimate;
@@ -149,6 +152,10 @@ work. Measured-duration policy (`validation.*`) is enforced after generation.
 ```bash
 python scripts/run_lesson_pipeline.py \
   --lesson-plan examples/demo_lesson/lesson_plan.json \
+  --save-planning-dir artifacts/planning/demo \
+  --job-id demo-live
+python scripts/run_lesson_pipeline.py \
+  --lesson-plan examples/demo_lesson/lesson_plan.json \
   --planning-dir examples/demo_lesson/planning \
   --job-id demo
 python scripts/run_pipeline.py --scene-set examples/scene_set.sample.json --job-id demo1
@@ -161,8 +168,9 @@ failure details.
 
 ## Honest limitations
 
-- No document ingestion, lesson planning, or live LLM provider adapter. The full
-  CLI consumes a `LessonPlan` plus per-scene planning artifacts.
+- No document ingestion or lesson planning. The full CLI consumes an authored
+  `LessonPlan`; it can plan live through Gemini or consume pre-generated planning
+  artifacts. Live Gemini behavior is unverified in this environment.
 - Per-segment narration timing is not carried into runtime generation, so
   whiteboard cues are not synchronized to individual narration segments.
 - The deterministic renderer does not draw geometric primitives or handwriting

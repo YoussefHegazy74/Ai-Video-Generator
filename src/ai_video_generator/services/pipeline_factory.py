@@ -54,7 +54,10 @@ from ai_video_generator.core.settings import AppSettings
 from ai_video_generator.integrations.audiovisual_generation_provider import (
     AudiovisualGenerationProvider,
 )
-from ai_video_generator.integrations.provider_factory import build_provider
+from ai_video_generator.integrations.provider_factory import (
+    build_llm_client,
+    build_provider,
+)
 from ai_video_generator.services.scene_generation_service import (
     SceneGenerationService,
 )
@@ -104,12 +107,24 @@ class RuntimePipelineComponents:
 
 def build_planning_pipeline(
     settings: AppSettings,
-    llm_client: LLMClient,
+    llm_client: LLMClient | None = None,
 ) -> PlanningPipelineComponents:
-    """Construct the planning agents, packager, and duration policy."""
-    script_agent = ScriptAgent(llm_client)
-    whiteboard_agent = WhiteboardDirectorAgent(llm_client)
-    visual_agent = VisualDesignAgent(llm_client)
+    """Construct the planning agents, packager, and duration policy.
+
+    When ``llm_client`` is omitted, the configured Gemini adapter is built and
+    missing credentials raise ``ConfigurationError`` immediately. Tests inject a
+    fake client, which keeps the public agent interfaces unchanged.
+    """
+    if llm_client is None:
+        configured_client = build_llm_client(settings)
+        configured_client.check_ready()
+        client: LLMClient = configured_client
+    else:
+        client = llm_client
+    temperature = settings.llm.temperature
+    script_agent = ScriptAgent(client, temperature=temperature)
+    whiteboard_agent = WhiteboardDirectorAgent(client, temperature=temperature)
+    visual_agent = VisualDesignAgent(client, temperature=temperature)
     packager = ScenePackager()
     duration_limits = DurationLimits(
         minimum_seconds=settings.planning.min_scene_duration_seconds,

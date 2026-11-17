@@ -1,14 +1,16 @@
 # AI Educational Video Generator
 
 > **Status:** the scene-planning stack and the local media pipeline are
-> integrated end to end. A lesson plan plus validated scene-planning artifacts can
-> be packaged, adapted, generated, validated, and assembled into a verified MP4
-> with synchronized local narration. Document ingestion, lesson planning,
-> personalization, a live LLM adapter, the HTTP API, and worker infrastructure
-> remain unimplemented or placeholders.
+> integrated end to end. A lesson plan plus either live planning or validated
+> planning artifacts can be packaged, adapted, generated, validated, and
+> assembled into a verified MP4 with synchronized local narration. Document
+> ingestion, lesson planning, personalization, the HTTP API, and worker
+> infrastructure remain unimplemented or placeholders.
 >
 > The default renderer is a **local deterministic whiteboard renderer**, not an
-> AI video model. No live LLM or Gemini call has been executed.
+> AI video model. A production Gemini structured-output adapter for the planning
+> agents is implemented and tested against a fake SDK client; no live Gemini or
+> LLM request has been executed in this environment.
 
 ## Vision
 
@@ -33,6 +35,7 @@ planning-package and media stages are implemented today; see
 | Example & Visual Agent | Implemented: pedagogical visual plan and required text | `agents/visual_design/` |
 | Planning timeline and duration limits | Implemented, planning estimates only | `video/scene_timing.py` |
 | Scene Packager | Implemented, deterministic `ScenePackage` composition | `agents/scene_packaging/` |
+| Production LLM adapter | Implemented: Gemini structured output, retries, schema validation | `integrations/gemini_llm_client.py` |
 | Planning-to-runtime adapter | Implemented: `ScenePackage` to `SceneSpec`/`SceneSet` | `agents/orchestration/runtime_adapter.py` |
 | Lesson pipeline (planning to video) | Implemented orchestration with injected components | `agents/orchestration/lesson_pipeline.py` |
 | Generation service | Implemented: provider capabilities, retries, locks, measured probing | `services/scene_generation_service.py` |
@@ -44,7 +47,7 @@ planning-package and media stages are implemented today; see
 | Configuration | Implemented: YAML + `AIVG_*` overrides, typed settings | `core/settings.py`, `config/` |
 | Document ingestion | Not implemented (placeholder modules) | `ingestion/` |
 | Lesson planning / personalization agents | Not implemented (placeholders) | `agents/planning/`, `agents/personalization/` |
-| Live LLM provider adapter | Not implemented; `LLMClient` is a protocol only | `agents/scene_planning/llm.py` |
+| Live LLM provider adapter | Implemented but not live-verified; needs `GEMINI_API_KEY` and `google-genai` | `integrations/gemini_llm_client.py` |
 | HTTP API | Not implemented (placeholder routes/schemas) | `api/` |
 | Distributed workers / database | Not implemented | — |
 
@@ -97,7 +100,9 @@ Requirements:
   AAC, `concat`, `overlay`, `fade`, `silencedetect`, `blackdetect`, `drawtext`,
   and preferably the `flite` audio source
 - A local TTS path: Windows SAPI or FFmpeg `flite`
-- Optional: `GEMINI_API_KEY` plus `google-genai` only for the paid Gemini provider
+- For real planning: `GEMINI_API_KEY` and the optional `google-genai` package
+  (`python -m pip install -e ".[google]"`). Without them the artifact mode and
+  all tests still run.
 
 ```bash
 python -m venv .venv
@@ -127,6 +132,7 @@ Important defaults:
 | Area | Default |
 | --- | --- |
 | Provider | `deterministic_whiteboard` (local, no credentials) |
+| Planning LLM | `gemini` / `gemini-3.8-flash`, temperature 0.2, 3 bounded retries |
 | Planning scene duration | 5-120 s per scene |
 | Validation scene duration | 5-120 s per scene; 1.5 s warning / 3 s failure drift |
 | Validation minimums | 640x360, 8 fps, audio required |
@@ -138,6 +144,22 @@ Important defaults:
 a runtime switch.
 
 ## Running
+
+### Full lesson pipeline with live planning
+
+```bash
+export GEMINI_API_KEY=...
+python -m pip install -e ".[google]"
+python scripts/run_lesson_pipeline.py \
+  --lesson-plan examples/demo_lesson/lesson_plan.json \
+  --save-planning-dir artifacts/planning/demo \
+  --job-id demo-live
+```
+
+Without `--planning-dir`, the Script, Whiteboard Director, and Example & Visual
+agents call the configured Gemini model. Planning artifacts are persisted when
+`--save-planning-dir` is set, so later runs can use the credential-free path
+below.
 
 ### Full lesson pipeline from planning artifacts
 
@@ -173,7 +195,17 @@ Useful options for both scripts: `--provider`, `--width`, `--height`, `--fps`,
 `--no-intro`, `--no-outro`, `--cancel-file <path>` (cooperative cancellation
 between work units), `--plain-logs`, and `--log-level`.
 
-### Optional paid provider
+### LLM smoke test (one paid request)
+
+```bash
+export GEMINI_API_KEY=...
+python scripts/llm_smoke_test.py --json
+```
+
+This sends one minimal structured-output request and validates the response. It
+does not plan a lesson, render video, or run in the test suite.
+
+### Optional paid video provider
 
 ```bash
 export GEMINI_API_KEY=...
@@ -224,9 +256,13 @@ synthetic clips, and a full lesson-pipeline run through real FFmpeg assembly.
 
 - No document ingestion, lesson planning, or personalization implementation; the
   integrated pipeline starts from an authored `LessonPlan` and planning artifacts.
-- No live LLM adapter. A provider implementing `LLMClient` must be supplied to
-  the planning factory before an end-to-end run can start from a lesson plan
-  alone.
+- The Gemini planning adapter is implemented but has not been exercised against
+  the live API in this environment. Its schema compatibility with the current
+  Gemini structured-output API is unverified beyond local JSON Schema checks.
+- The default LLM model (`gemini-3.8-flash`) and schema subset may need updating
+  as Gemini model and JSON Schema support evolve; both are configurable.
+- LLM retries are per-call only. Cross-scene planning is not resumable, and no
+  cost budget or token accounting is implemented.
 - The planning-to-runtime adapter intentionally flattens narration into one
   runtime string. Per-segment audio timing (`segment_id` anchors) is not carried
   into provider generation, so progressive whiteboard cues cannot yet be
@@ -277,6 +313,7 @@ data/                   Reserved runtime data directories
 
 ## Documentation
 
+- `docs/llm_adapter_integration_report.md` - production LLM adapter decisions, tests, and limits.
 - `docs/full_team_integration_report.md` - what was integrated, tested, and left open.
 - `docs/system_architecture.md` - layers, dependency direction, storage, configuration.
 - `docs/video_generation_pipeline.md` - planning-to-media stages and checks.

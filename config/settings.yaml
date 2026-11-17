@@ -41,6 +41,17 @@ generation:
   max_validation_attempts: 2
   sync_tolerance_seconds: 0.35
 
+llm:
+  provider: gemini
+  model: gemini-3.8-flash
+  temperature: 0.2
+  max_attempts: 3
+  backoff_base_seconds: 1.0
+  backoff_max_seconds: 8.0
+  backoff_jitter_seconds: 0.25
+  timeout_seconds: 120
+  max_output_tokens: 8192
+
 planning:
   min_scene_duration_seconds: 5
   max_scene_duration_seconds: 120

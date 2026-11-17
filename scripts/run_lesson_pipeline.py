@@ -4,17 +4,21 @@
 This entry point covers everything implemented end to end:
 
     LessonPlan JSON
-      + per-scene ScenePlanningResult / VisualPlanningResult JSON
-      -> ScenePackager (deterministic, no LLM)
+      + either per-scene planning artifacts, or a live Gemini planning run
+      -> ScenePackager
       -> SceneRuntimeAdapter
       -> generate -> validate -> assemble
       -> verified final video
 
-Lesson planning, document ingestion, and scripting-agent LLM provider adapters
-are not implemented in this repository. This script therefore starts from
-planning artifacts produced elsewhere; use ``--plan-only`` to stop after
-packaging and adaptation. To run only the media stage from a ready SceneSet, use
-``scripts/run_pipeline.py``.
+Without ``--planning-dir`` the Script, Whiteboard Director, and Example & Visual
+agents run through the configured Gemini adapter, which requires
+``GEMINI_API_KEY``. With ``--planning-dir`` the deterministic packaging path runs
+from pre-generated artifacts and needs no credentials. Use ``--plan-only`` to stop
+after packaging and adaptation. To run only the media stage from a ready
+SceneSet, use ``scripts/run_pipeline.py``.
+
+Document ingestion and lesson planning are still not implemented; the input is an
+authored ``LessonPlan``.
 
 The default renderer is the local deterministic whiteboard renderer, not an AI
 video model. FFmpeg plus a local TTS path (Windows SAPI or FFmpeg flite) are
@@ -42,6 +46,9 @@ from ai_video_generator.agents.orchestration.runtime_adapter import (  # noqa: E
     RuntimeSceneOptions,
     SceneRuntimeAdapter,
 )
+from ai_video_generator.agents.scene_planning.errors import (  # noqa: E402
+    ScenePlanningError,
+)
 from ai_video_generator.agents.scene_packaging.scene_packager_agent import (  # noqa: E402
     ScenePackager,
     ScenePackagingError,
@@ -58,6 +65,7 @@ from ai_video_generator.models.visual_planning import (  # noqa: E402
     VisualPlanningResult,
 )
 from ai_video_generator.services.pipeline_factory import (  # noqa: E402
+    build_planning_pipeline,
     build_runtime_pipeline,
 )
 from ai_video_generator.video.scene_timing import DurationLimits  # noqa: E402
@@ -80,10 +88,19 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--planning-dir",
-        required=True,
+        default=None,
         help=(
             "Directory with <scene_id>.scene_planning.json and "
-            "<scene_id>.visual_planning.json for every lesson scene"
+            "<scene_id>.visual_planning.json for every lesson scene. Omit to run "
+            "the live Gemini planning agents (requires GEMINI_API_KEY)."
+        ),
+    )
+    parser.add_argument(
+        "--save-planning-dir",
+        default=None,
+        help=(
+            "When running live planning, write the validated planning artifacts "
+            "to this directory so later runs can use --planning-dir"
         ),
     )
     parser.add_argument(
@@ -120,6 +137,34 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="Cancellation flag file; creating it requests a cooperative stop",
     )
     return parser.parse_args(argv)
+
+
+def _write_planning_artifacts(
+    packages: list[Any],
+    lesson_plan: LessonPlan,
+    directory: Path,
+) -> None:
+    """Persist validated live planning output in the artifact CLI format."""
+    directory.mkdir(parents=True, exist_ok=True)
+    for package, brief in zip(packages, lesson_plan.scenes):
+        planning_result = ScenePlanningResult(
+            lesson_id=lesson_plan.lesson_id,
+            scene=brief,
+            script=package.script,
+            whiteboard=package.whiteboard,
+        )
+        visual_result = VisualPlanningResult(
+            scene_id=package.scene_id,
+            plan=package.visual,
+        )
+        (directory / f"{package.scene_id}.scene_planning.json").write_text(
+            json.dumps(planning_result.to_dict(), indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (directory / f"{package.scene_id}.visual_planning.json").write_text(
+            json.dumps(visual_result.to_dict(), indent=2) + "\n",
+            encoding="utf-8",
+        )
 
 
 def _read_json(path: Path) -> Any:
@@ -166,19 +211,37 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         lesson_plan = _load_lesson_plan(resolve_input_path(args.lesson_plan))
-        planning_dir = resolve_input_path(args.planning_dir)
-        artifacts = _load_planning_artifacts(planning_dir, lesson_plan)
 
-        duration_limits = DurationLimits(
-            minimum_seconds=settings.planning.min_scene_duration_seconds,
-            maximum_seconds=settings.planning.max_scene_duration_seconds,
-            tolerance_seconds=settings.planning.duration_tolerance_seconds,
-        )
-        packager = ScenePackager()
-        packages = [
-            packager.package(planning_result, visual_result, duration_limits)
-            for planning_result, visual_result in artifacts
-        ]
+        if args.planning_dir:
+            artifacts = _load_planning_artifacts(
+                resolve_input_path(args.planning_dir), lesson_plan
+            )
+            duration_limits = DurationLimits(
+                minimum_seconds=settings.planning.min_scene_duration_seconds,
+                maximum_seconds=settings.planning.max_scene_duration_seconds,
+                tolerance_seconds=settings.planning.duration_tolerance_seconds,
+            )
+            packager = ScenePackager()
+            packages = [
+                packager.package(planning_result, visual_result, duration_limits)
+                for planning_result, visual_result in artifacts
+            ]
+        else:
+            logger.info(
+                "Running live planning",
+                extra={"model": settings.llm.model, "provider": settings.llm.provider},
+            )
+            planning_components = build_planning_pipeline(settings)
+            packages = list(
+                planning_components.planning.plan_lesson(lesson_plan)
+            )
+            if args.save_planning_dir:
+                _write_planning_artifacts(
+                    packages,
+                    lesson_plan,
+                    resolve_input_path(args.save_planning_dir),
+                )
+
         scene_set = SceneRuntimeAdapter().adapt_lesson(
             packages,
             lesson_plan,
@@ -245,6 +308,7 @@ def main(argv: list[str] | None = None) -> int:
         AppError,
         RuntimeAdapterError,
         ScenePackagingError,
+        ScenePlanningError,
         ValueError,
         OSError,
     ) as exc:

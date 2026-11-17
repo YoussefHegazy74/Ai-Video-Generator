@@ -271,14 +271,15 @@ contract for the full primitive table.
 
 ## 6. Known limitations
 
-- Tests use a fake LLM only. A real local renderer/assembly path has been
-  exercised; no live LLM or Gemini call has been made.
+- Tests use a fake LLM and a fake SDK client. A real local renderer/assembly path
+  has been exercised; no live LLM or Gemini call has been made.
 - Packaging and prompt data are deterministic and provider-neutral. The runtime
   adapter produces `SceneSpec`/`SceneSet`, but per-segment audio timing is not
   carried into generation.
 - No semantic fact-checking beyond source-ID grounding.
-- No live LLM provider adapter. Retries, persistence, job state, and the runtime
-  orchestrator exist on the media side; there is no API layer.
+- A production Gemini adapter implements `LLMClient`, but live behavior is
+  unverified. Adapter-level retries exist; planning persistence/resumption and
+  the API layer do not.
 - Renderer semantics (origin, aspect ratio, circle/rectangle interpretation,
   z-order) are provisional.
 - External visual assets, image placement, z-order, and on-screen citation

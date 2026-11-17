@@ -826,9 +826,9 @@ them rather than maintaining a parallel schema.
 ### LLM boundary
 
 Both agents depend only on the local protocol shown in section 3.1.
-`integrations/llm_provider.py` remains the provider boundary; a future adapter
-should implement this protocol (or the team should agree on one shared protocol
-and update this component).
+`integrations/llm_provider.py` re-exports this protocol and the implemented
+Gemini adapter. Other providers must implement the same interface; agent code
+must not change.
 
 The provider adapter is responsible for requesting JSON output when supported
 and for mapping provider errors into typed failures. The agents tolerate a
@@ -909,11 +909,13 @@ implementation and need team agreement.
 - **Renderer fidelity is limited.** The deterministic renderer consumes text,
   colors, title text, and a step count; it does not draw the whiteboard plan's
   geometry, handwriting paths, or carried actions.
-- **No provider adapter.** The local `LLMClient` protocol is a boundary, not an
-  implementation. API keys, retries, rate limits, and provider error mapping are
-  not implemented here.
-- **No orchestration or retries.** The agents make one call and raise typed
-  errors. Bounded retries and persistence are orchestration-owned.
+- **Live LLM behavior is unverified.** A production Gemini adapter
+  (`integrations/gemini_llm_client.py`) implements the local `LLMClient` protocol
+  with structured output, bounded retries, and error mapping, but it has only
+  been exercised against a fake SDK client.
+- **Agents do not retry.** The agents make one call and raise typed errors;
+  bounded transport retries live in the LLM adapter. Planning persistence and
+  cross-scene resumption are orchestration-owned and not implemented.
 - **Selected-page ranges are not duplicated in `ScenePlanningResult`.** The
   result preserves the scene's excerpts and page references, but packaging that
   needs the original selection must receive it from planning.

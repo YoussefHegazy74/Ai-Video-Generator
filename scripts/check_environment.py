@@ -181,13 +181,23 @@ def build_report(config_dir: str | None) -> tuple[dict[str, Any], list[str]]:
     media = _media_report(settings)
     report["media"] = media
     report["tts"] = _tts_report(settings)
+    key_configured = settings.provider.gemini_api_key is not None
     report["provider"] = {
         "selected": settings.provider.id,
         "gemini_model": settings.provider.gemini.model,
-        "gemini_api_key_configured": bool(os.environ.get("GEMINI_API_KEY")),
+        "gemini_api_key_configured": key_configured,
         "google_genai_installed": packages.get("google-genai") is not None,
         "gemini_live_call_tested": False,
         "gemini_duration_control": False,
+    }
+    report["planning_llm"] = {
+        "provider": settings.llm.provider,
+        "model": settings.llm.model,
+        "temperature": settings.llm.temperature,
+        "max_attempts": settings.llm.max_attempts,
+        "credential_configured": key_configured,
+        "google_genai_installed": packages.get("google-genai") is not None,
+        "live_call_tested": False,
     }
 
     if not media["ffmpeg_path"]:
@@ -256,6 +266,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  GEMINI_API_KEY configured: {provider['gemini_api_key_configured']}")
         print(f"  google-genai installed: {provider['google_genai_installed']}")
         print("  Gemini live call: not tested (requires credentials and paid usage)")
+        print("Planning LLM:")
+        llm = report["planning_llm"]
+        print(f"  provider: {llm['provider']}")
+        print(f"  model: {llm['model']}")
+        print(f"  credential configured: {llm['credential_configured']}")
+        print(f"  google-genai installed: {llm['google_genai_installed']}")
+        print("  live call: not tested (run scripts/llm_smoke_test.py)")
         if report.get("warnings"):
             print("Warnings:")
             for warning in report["warnings"]:

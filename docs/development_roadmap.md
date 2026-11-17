@@ -1,8 +1,8 @@
 # Development Roadmap
 
-**Status:** Parts 5-7 plus scene planning, packaging, and the planning-to-runtime
-adapter are implemented and integrated. Ingestion, lesson planning,
-personalization, the live LLM adapter, and the serving layer are still
+**Status:** Parts 5-7 plus scene planning, packaging, the planning-to-runtime
+adapter, and the production Gemini LLM adapter are implemented and integrated.
+Ingestion, lesson planning, personalization, and the serving layer are still
 placeholders.
 
 This roadmap distinguishes the implemented local pipeline from the remaining
@@ -19,6 +19,10 @@ exist in this repository.
 - [x] **Integration.** `SceneRuntimeAdapter`, `LessonPlanningPipeline`,
   `LessonPipeline`, centralized pipeline factories, a full lesson CLI, a
   deterministic demo lesson, and a real local render-to-MP4 integration test.
+- [x] **Production LLM adapter.** Gemini structured output behind the existing
+  `LLMClient`, JSON Schema validation, bounded retries, credential redaction,
+  configuration, factory injection, a live smoke command, and deterministic
+  fake-SDK tests. Live API behavior is not yet verified.
 - [x] **Shared foundations.** Typed settings, structured logging, stable
   exceptions, safe identifiers and paths, local storage, and an artifact
   registry.
@@ -58,9 +62,9 @@ adapter and a real lesson planner to run from a document.
 3. **Scripting and personalization.** Produce narration, examples, pacing, and
    audience adaptations without inventing source claims. Exit criterion:
    schema-valid scripts with source links and duration estimates.
-4. **LLM provider adapter.** Implement `LLMClient` against a chosen structured
-   output provider, with error mapping, retries at orchestration level, and
-   credential handling. Exit criterion: a live, cost-bounded planning run.
+4. **Live LLM verification and cost controls.** Run the smoke test with a real
+   key, then one full lesson plan; add token/cost accounting and a per-job budget.
+   Exit criterion: a verified live planning run with recorded cost.
 5. **Segment-level timing and renderer fidelity.** Return real per-segment TTS
    timings and render whiteboard primitives/handwriting so cues synchronize to
    narration instead of uniform reveal.
@@ -101,13 +105,15 @@ adapter and a real lesson planner to run from a document.
 
 ## Verification baseline
 
-- `python -m pytest -q` from the repository root: 297 tests, no network or paid
+- `python -m pytest -q` from the repository root: 316 tests, no network or paid
   calls (FFmpeg-dependent tests skip when the tools are absent).
 - `python scripts/check_environment.py --json`: local media/TTS capability report
   without a paid Gemini call.
 - `python scripts/run_lesson_pipeline.py --lesson-plan
   examples/demo_lesson/lesson_plan.json --planning-dir examples/demo_lesson/planning
   --job-id demo`: integrated local lesson pipeline through final assembly.
+- `python scripts/llm_smoke_test.py --json`: optional one-request live Gemini
+  check; not part of the automated suite.
 - `python scripts/run_pipeline.py --scene-set examples/scene_set.sample.json
   --job-id demo1`: runtime-only local smoke path.
 

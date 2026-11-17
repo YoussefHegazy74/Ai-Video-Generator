@@ -147,6 +147,47 @@ class GenerationSettings(BaseModel):
         return value
 
 
+class LLMSettings(BaseModel):
+    """Structured-output LLM configuration for the planning agents.
+
+    Credentials are not stored here. The adapter reads ``GEMINI_API_KEY`` through
+    ``ProviderSettings.gemini_api_key`` so the video adapter and the planning
+    adapter share one documented credential variable.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str = "gemini"
+    model: str = Field(default="gemini-3.8-flash", min_length=1, max_length=200)
+    temperature: float = Field(default=0.2, ge=0, le=2)
+    max_attempts: int = Field(default=3, ge=1, le=10)
+    backoff_base_seconds: float = Field(default=1.0, ge=0, le=60)
+    backoff_max_seconds: float = Field(default=8.0, ge=0, le=300)
+    backoff_jitter_seconds: float = Field(default=0.25, ge=0, le=10)
+    timeout_seconds: float = Field(default=120.0, gt=0, le=1800)
+    max_output_tokens: int = Field(default=8192, ge=256, le=100_000)
+
+    @field_validator("provider")
+    @classmethod
+    def _supported_provider(cls, value: str) -> str:
+        if value != "gemini":
+            raise ValueError(
+                "llm.provider must be 'gemini'; no other LLM adapter is "
+                "implemented"
+            )
+        return value
+
+    @field_validator("backoff_max_seconds")
+    @classmethod
+    def _llm_max_not_below_base(cls, value: float, info: Any) -> float:
+        base = info.data.get("backoff_base_seconds")
+        if base is not None and value < base:
+            raise ValueError(
+                "llm.backoff_max_seconds must be >= llm.backoff_base_seconds"
+            )
+        return value
+
+
 class PlanningSettings(BaseModel):
     """Scene-package duration policy and whiteboard presentation defaults.
 
@@ -200,6 +241,7 @@ class AppSettings(BaseModel):
     provider: ProviderSettings = Field(default_factory=ProviderSettings)
     generation: GenerationSettings = Field(default_factory=GenerationSettings)
     planning: PlanningSettings = Field(default_factory=PlanningSettings)
+    llm: LLMSettings = Field(default_factory=LLMSettings)
     validation: ValidationPolicy = Field(default_factory=ValidationPolicy)
     assembly: AssemblyOptions = Field(default_factory=AssemblyOptions)
 
@@ -389,6 +431,15 @@ def _apply_env_overrides(
         ("AIVG_PLANNING_SHOW_SCENE_TITLE", ("planning", "show_scene_title"), "bool"),
         ("AIVG_PLANNING_BACKGROUND_COLOR", ("planning", "background_color"), "str"),
         ("AIVG_PLANNING_ACCENT_COLOR", ("planning", "accent_color"), "str"),
+        ("AIVG_LLM_PROVIDER", ("llm", "provider"), "str"),
+        ("AIVG_LLM_MODEL", ("llm", "model"), "str"),
+        ("AIVG_LLM_TEMPERATURE", ("llm", "temperature"), "float"),
+        ("AIVG_LLM_MAX_ATTEMPTS", ("llm", "max_attempts"), "int"),
+        ("AIVG_LLM_BACKOFF_BASE_SECONDS", ("llm", "backoff_base_seconds"), "float"),
+        ("AIVG_LLM_BACKOFF_MAX_SECONDS", ("llm", "backoff_max_seconds"), "float"),
+        ("AIVG_LLM_BACKOFF_JITTER_SECONDS", ("llm", "backoff_jitter_seconds"), "float"),
+        ("AIVG_LLM_TIMEOUT_SECONDS", ("llm", "timeout_seconds"), "float"),
+        ("AIVG_LLM_MAX_OUTPUT_TOKENS", ("llm", "max_output_tokens"), "int"),
         (
             "AIVG_VALIDATION_MIN_SCENE_DURATION_SECONDS",
             ("validation", "min_scene_duration_seconds"),
@@ -554,6 +605,7 @@ __all__ = [
     "AppSettings",
     "GeminiSettings",
     "GenerationSettings",
+    "LLMSettings",
     "MediaSettings",
     "PlanningSettings",
     "ProviderSettings",

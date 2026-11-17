@@ -2,8 +2,9 @@
 
 **Status:** scene planning, deterministic packaging, scene generation,
 measurable validation, and final-video assembly are implemented and integrated.
-Document ingestion, lesson planning, personalization, a live LLM adapter, an HTTP
-API, and worker infrastructure remain placeholders. The full entry point accepts
+A production Gemini structured-output adapter serves the planning agents;
+document ingestion, lesson planning, personalization, an HTTP API, and worker
+infrastructure remain placeholders. The full entry point accepts
 a `LessonPlan` plus per-scene planning artifacts; it does not yet create them from
 a book or PDF.
 
@@ -14,8 +15,10 @@ from a book or PDF into a personalized, long-form educational video. The
 presentation is a digital whiteboard lesson with synchronized narration. No
 instructor face or human avatar is shown.
 
-The implemented default provider is a **local deterministic whiteboard
-renderer, not an AI video model**. It prioritizes exact technical text, code, and
+The implemented default video provider is a **local deterministic whiteboard
+renderer, not an AI video model**. Planning can use the configured Gemini
+structured-output adapter when `GEMINI_API_KEY` is present; no live call has been
+verified in this environment. It prioritizes exact technical text, code, and
 equations over generative visual variety and requires no credentials. An optional
 Gemini Omni Flash adapter targets `gemini-omni-1.1-flash`; it requires
 `GEMINI_API_KEY`, makes paid API calls, has no documented duration control, and
@@ -33,7 +36,8 @@ has only been contract-tested with a fake client in this environment.
 ## Current user journey
 
 ```text
-LessonPlan + planning artifacts
+LessonPlan
+  -> live Gemini planning (or pre-generated planning artifacts)
   -> package and adapt each scene
   -> generate each scene with synchronized narration
   -> measure and validate the media
@@ -62,8 +66,9 @@ Implemented:
 - Planning contracts for source excerpts, lesson/scene briefs, scripts,
   whiteboard direction, visual plans, and planning timelines.
 - Script, Whiteboard Director, and Example & Visual agents behind an injected
-  structured LLM boundary, plus deterministic scene packaging and a
-  planning-to-runtime adapter.
+  structured LLM boundary, a production Gemini adapter with bounded retries and
+  schema validation, plus deterministic scene packaging and a planning-to-runtime
+  adapter.
 - A typed runtime scene/job contract with legal state transitions.
 - Local deterministic and optional Gemini Omni generation adapters.
 - Retry, idempotency, cancellation, measured metadata, and artifact storage.
@@ -76,7 +81,6 @@ Not implemented:
 
 - PDF/book ingestion, content normalization, lesson planning, and
   personalization.
-- A live LLM provider adapter.
 - Per-segment narration timing and whiteboard primitive rendering in the local
   renderer.
 - OCR, semantic narration-to-visual alignment, and source-grounded accuracy

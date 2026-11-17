@@ -13,10 +13,11 @@ dependencies = [
   "Pillow>=10,<12",
   "PyYAML>=6,<7",
   "python-dotenv>=1,<2",
+  "jsonschema>=4.23,<5",
 ]
 
 [project.optional-dependencies]
-google = ["google-genai>=1.0,<2"]
+google = ["google-genai>=2,<3"]
 dev = ["pytest>=8,<10"]
 
 [tool.setuptools.packages.find]

@@ -25,13 +25,20 @@ LessonPlanningPipeline (per scene, in lesson order)
 
 `LessonPipeline` composes the planning half, the adapter, and the runtime
 orchestrator. All agents and services are injected; factories in
-`services/pipeline_factory.py` centralize construction from configuration.
+`services/pipeline_factory.py` centralize construction from configuration. When no
+client is injected, `build_planning_pipeline` constructs the configured Gemini
+adapter; tests and offline runs keep injecting fakes or pre-generated artifacts.
 
 ### Planning agents
 
+All three planning agents share one injected ``LLMClient``. The production
+implementation is `integrations/gemini_llm_client.py`: it sends the agent's JSON
+Schema as a Gemini structured-output request, validates the returned object, and
+maps provider failures to typed planning errors. Agents never import the SDK.
+
 - **Script Agent** makes one structured LLM call per scene and returns validated
   narration segments, key points, and source citations. It does not retry or
-  fabricate citations.
+  fabricate citations; bounded transport retries belong to the adapter.
 - **Whiteboard Director** consumes the validated script and the previous scene's
   plan, and returns board regions, ordered drawing primitives, handwriting cues,
   highlights, and continuity instructions.

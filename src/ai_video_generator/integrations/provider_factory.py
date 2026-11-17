@@ -17,6 +17,7 @@ from ai_video_generator.integrations.audiovisual_generation_provider import (
 from ai_video_generator.integrations.deterministic_whiteboard_provider import (
     DeterministicWhiteboardProvider,
 )
+from ai_video_generator.integrations.gemini_llm_client import GeminiLLMClient
 from ai_video_generator.integrations.gemini_omni_provider import GeminiOmniProvider
 from ai_video_generator.integrations.narration_synthesizer import (
     AutoNarrator,
@@ -81,9 +82,48 @@ def build_provider(
     )
 
 
+def build_llm_client(
+    settings: AppSettings,
+    *,
+    client: Any | None = None,
+) -> GeminiLLMClient:
+    """Construct the configured structured-output LLM adapter.
+
+    ``client`` injects a fake or alternate SDK transport for tests. Production
+    callers omit it; credentials then come only from ``GEMINI_API_KEY``.
+    """
+    llm = settings.llm
+    if llm.provider != "gemini":
+        raise ConfigurationError(
+            f"Unsupported LLM provider: {llm.provider!r}",
+            details={"provider": llm.provider},
+        )
+    api_key = (
+        settings.provider.gemini_api_key.get_secret_value()
+        if settings.provider.gemini_api_key is not None
+        else None
+    )
+    return GeminiLLMClient(
+        api_key=api_key,
+        model=llm.model,
+        max_attempts=llm.max_attempts,
+        timeout_seconds=llm.timeout_seconds,
+        max_output_tokens=llm.max_output_tokens,
+        backoff_base_seconds=llm.backoff_base_seconds,
+        backoff_max_seconds=llm.backoff_max_seconds,
+        backoff_jitter_seconds=llm.backoff_jitter_seconds,
+        client=client,
+    )
+
+
 def capabilities_dict(provider: AudiovisualGenerationProvider) -> dict[str, Any]:
     capabilities: ProviderCapabilities = provider.capabilities
     return capabilities.model_dump(mode="json")
 
 
-__all__ = ["build_narrator", "build_provider", "capabilities_dict"]
+__all__ = [
+    "build_llm_client",
+    "build_narrator",
+    "build_provider",
+    "capabilities_dict",
+]
