@@ -3,6 +3,7 @@
 **Date:** 2026-11-17
 **Branch:** `integration/full-team-integration`
 **Base verified HEAD:** `8184e1e4637a5725683f873a641670908de57518`
+**Adapter commit:** `1cb43c72e27867c13ce270190960b3e4c7a01d8a`
 **Scope:** first production structured-output LLM integration for the planning
 agents.
 
