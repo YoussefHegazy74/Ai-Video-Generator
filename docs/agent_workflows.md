@@ -1,23 +1,49 @@
 # Agent Workflows
 
-**Status:** the generation, validation, assembly, and orchestration agents for
-Parts 5-7 are implemented. Ingestion, personalization, planning, scripting,
-whiteboard direction, visual design, and scene packaging modules remain
-placeholders and are not invoked by the current pipeline.
+**Status:** the Script, Whiteboard Director, Example & Visual, packaging, and
+runtime agents are implemented. Ingestion, personalization, and lesson planning
+modules remain placeholders.
 
 ## Implemented flow
 
 ```text
-WorkflowOrchestrator
-  -> SceneGenerationService / VideoGenerationAgent
-  -> SceneValidationAgent
-       -> retry generation if a blocking check is retryable
-       -> otherwise fail the job
-  -> VideoAssemblyService / VideoAssemblyAgent
-  -> completed job + final video + manifests
+LessonPlanningPipeline (per scene, in lesson order)
+  -> ScriptAgent.generate(ScenePlanningInput) -> SceneScript
+  -> WhiteboardDirectorAgent.generate_for_scene(..., previous_plan) -> WhiteboardPlan
+  -> VisualDesignAgent.generate(VisualPlanningInput) -> VisualPlanningResult
+  -> ScenePackager.package(ScenePlanningResult, VisualPlanningResult, DurationLimits)
+       -> ScenePackage
+  -> SceneRuntimeAdapter.adapt_lesson(...) -> SceneSet
+  -> WorkflowOrchestrator
+       -> SceneGenerationService / VideoGenerationAgent
+       -> SceneValidationAgent
+            -> retry generation if a blocking check is retryable
+            -> otherwise fail the job
+       -> VideoAssemblyService / VideoAssemblyAgent
+       -> completed job + final video + manifests
 ```
 
-### Workflow orchestrator
+`LessonPipeline` composes the planning half, the adapter, and the runtime
+orchestrator. All agents and services are injected; factories in
+`services/pipeline_factory.py` centralize construction from configuration.
+
+### Planning agents
+
+- **Script Agent** makes one structured LLM call per scene and returns validated
+  narration segments, key points, and source citations. It does not retry or
+  fabricate citations.
+- **Whiteboard Director** consumes the validated script and the previous scene's
+  plan, and returns board regions, ordered drawing primitives, handwriting cues,
+  highlights, and continuity instructions.
+- **Example & Visual Agent** returns a pedagogical visual plan with required exact
+  text; it does not own layout or rendering.
+- **Scene Packager** is deterministic and provider-neutral. It blocks on duration
+  errors and retains target-mismatch warnings on the planning timeline.
+- **Runtime adapter** translates the package into the runtime contract. It copies
+  narration text, target duration, whiteboard text, and all source provenance, and
+  rejects runtime-unsafe scene IDs.
+
+### Runtime workflow orchestrator
 
 `agents/orchestration/workflow_orchestrator.py` owns the synchronous job state
 machine:
@@ -93,7 +119,7 @@ stores the final video plus manifest.
 
 ## Not implemented
 
-The upstream agent modules (ingestion, personalization, planning, scripting,
-whiteboard direction, visual design, scene packaging) contain docstrings only.
-There is no human review UI, model-based scene planning, or task queue. The
-current CLI starts from a pre-built `SceneSet` JSON file.
+Document ingestion, personalization, lesson planning, and a live LLM provider
+adapter are not implemented. There is no human review UI, model-based lesson
+planning, or task queue. The full CLI starts from a `LessonPlan` plus validated
+per-scene planning artifacts; the runtime CLI starts from a `SceneSet` JSON file.

@@ -1,13 +1,15 @@
 # Video Generation Pipeline
 
-**Status:** Parts 5-7 are implemented. Upstream planning/scripting stages are not.
-The pipeline is synchronous and runs in one process; there is no HTTP API or
-worker queue in this repository.
+**Status:** planning, packaging, generation, validation, and assembly are
+integrated. Ingestion and lesson planning are not implemented. The pipeline is
+synchronous and runs in one process; there is no HTTP API or worker queue.
 
 ## Stage flow
 
 ```text
-SceneSet JSON
+LessonPlan + planning artifacts
+  -> ScenePackager -> ScenePackage
+  -> SceneRuntimeAdapter -> SceneSet
   -> generation service (capability check, lock, retries)
   -> measured scene artifact + manifest + scene record
   -> validation agent (measurable checks, structured report)
@@ -124,21 +126,47 @@ trimmed. Overlapping crossfades are intentionally unsupported.
 - Temporary render directories are removed in a `finally` block. Final artifacts
   are stored only after verification.
 
+## Planning handoff
+
+`agents/orchestration/lesson_pipeline.py` orders the Script, Whiteboard Director,
+Example & Visual, and Scene Packager stages. `agents/orchestration/runtime_adapter.py`
+then produces the runtime `SceneSet`:
+
+- runtime target duration is the planning timeline's script estimate;
+- runtime narration is the script's ordered segment text;
+- runtime source references preserve document ID, page number, excerpt, and the
+  first source section label;
+- whiteboard write/equation actions and visual exact text become deterministic
+  whiteboard text elements, and highlight targets become emphasis;
+- runtime scene indices are contiguous from zero in lesson order.
+
+Planning duration policy (`planning.min_scene_duration_seconds`,
+`planning.max_scene_duration_seconds`) is enforced by the packager before media
+work. Measured-duration policy (`validation.*`) is enforced after generation.
+
 ## CLI
 
-```powershell
-python scripts\run_pipeline.py --scene-set examples\scene_set.sample.json --job-id demo1
-python scripts\run_pipeline.py --width 640 --height 360 --fps 12 --no-intro --no-outro
+```bash
+python scripts/run_lesson_pipeline.py \
+  --lesson-plan examples/demo_lesson/lesson_plan.json \
+  --planning-dir examples/demo_lesson/planning \
+  --job-id demo
+python scripts/run_pipeline.py --scene-set examples/scene_set.sample.json --job-id demo1
+python scripts/run_pipeline.py --width 640 --height 360 --fps 12 --no-intro --no-outro
 ```
 
-Exit codes: `0` completed, `1` failed/error, `2` cancelled. The CLI prints a JSON
+Exit codes: `0` completed, `1` failed/error, `2` cancelled. Both CLIs print a JSON
 summary with job status, final artifact paths, per-scene measured durations, and
 failure details.
 
 ## Honest limitations
 
-- No document ingestion or automatic scene authoring; the CLI consumes a
-  pre-built `SceneSet` JSON file.
+- No document ingestion, lesson planning, or live LLM provider adapter. The full
+  CLI consumes a `LessonPlan` plus per-scene planning artifacts.
+- Per-segment narration timing is not carried into runtime generation, so
+  whiteboard cues are not synchronized to individual narration segments.
+- The deterministic renderer does not draw geometric primitives or handwriting
+  paths; it renders authoritative text, a cursor, and a progress bar.
 - No OCR, semantic alignment, or source-grounded evaluation.
 - No distributed locking, database, queue, or API.
 - Gemini Omni has no documented duration control and has not been called live in

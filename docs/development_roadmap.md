@@ -1,14 +1,24 @@
 # Development Roadmap
 
-**Status:** Parts 5-7 are implemented and tested as of 2026-10-25. The upstream
-authoring stages and the serving layer are still placeholders.
+**Status:** Parts 5-7 plus scene planning, packaging, and the planning-to-runtime
+adapter are implemented and integrated. Ingestion, lesson planning,
+personalization, the live LLM adapter, and the serving layer are still
+placeholders.
 
 This roadmap distinguishes the implemented local pipeline from the remaining
 product work. A checked item means code, tests, and user-facing documentation
 exist in this repository.
 
-## Completed: Parts 5-7
+## Completed: planning and Parts 5-7
 
+- [x] **Scene planning contracts and agents.** Script Agent, Whiteboard Director
+  Agent, Example & Visual Agent, shared source/lesson/script/whiteboard/visual
+  contracts, prompts, schemas, semantic validation, and tests.
+- [x] **Scene packaging and timing.** Deterministic `ScenePackage`, planning
+  timeline, explicit duration limits, and provider-neutral prompt data.
+- [x] **Integration.** `SceneRuntimeAdapter`, `LessonPlanningPipeline`,
+  `LessonPipeline`, centralized pipeline factories, a full lesson CLI, a
+  deterministic demo lesson, and a real local render-to-MP4 integration test.
 - [x] **Shared foundations.** Typed settings, structured logging, stable
   exceptions, safe identifiers and paths, local storage, and an artifact
   registry.
@@ -35,7 +45,8 @@ exist in this repository.
 ## Next: upstream authoring pipeline
 
 These modules currently contain docstrings only and are not invoked by the
-pipeline.
+pipeline. The planning agents and packaging are implemented but need a live LLM
+adapter and a real lesson planner to run from a document.
 
 1. **Ingestion and normalization.** Accept PDFs/books and page ranges, extract
    text and figures, preserve source references, and record extraction quality.
@@ -47,11 +58,12 @@ pipeline.
 3. **Scripting and personalization.** Produce narration, examples, pacing, and
    audience adaptations without inventing source claims. Exit criterion:
    schema-valid scripts with source links and duration estimates.
-4. **Whiteboard direction and visual design.** Convert scripts into scene
-   specifications, diagrams, equations, and layout instructions. Exit criterion:
-   a valid `SceneSet` consumable by the implemented pipeline.
-5. **Scene packaging.** Resolve assets, validate required content, and persist an
-   auditable scene set before generation.
+4. **LLM provider adapter.** Implement `LLMClient` against a chosen structured
+   output provider, with error mapping, retries at orchestration level, and
+   credential handling. Exit criterion: a live, cost-bounded planning run.
+5. **Segment-level timing and renderer fidelity.** Return real per-segment TTS
+   timings and render whiteboard primitives/handwriting so cues synchronize to
+   narration instead of uniform reveal.
 
 ## Later: serving and operations
 
@@ -89,12 +101,15 @@ pipeline.
 
 ## Verification baseline
 
-- `python -m pytest -q` from the repository root: 53 tests, no network or paid
-  calls.
+- `python -m pytest -q` from the repository root: 297 tests, no network or paid
+  calls (FFmpeg-dependent tests skip when the tools are absent).
 - `python scripts/check_environment.py --json`: local media/TTS capability report
   without a paid Gemini call.
+- `python scripts/run_lesson_pipeline.py --lesson-plan
+  examples/demo_lesson/lesson_plan.json --planning-dir examples/demo_lesson/planning
+  --job-id demo`: integrated local lesson pipeline through final assembly.
 - `python scripts/run_pipeline.py --scene-set examples/scene_set.sample.json
-  --job-id demo1`: end-to-end local smoke path.
+  --job-id demo1`: runtime-only local smoke path.
 
 See `README.md`, `docs/implementation_plan_parts_5_7.md`, and
 `docs/video_generation_pipeline.md` for exact commands and limitations.

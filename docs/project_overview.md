@@ -1,10 +1,11 @@
 # Project Overview
 
-**Status:** Parts 5-7 are implemented: scene generation, measurable scene
-validation, and deterministic final-video assembly. Document ingestion, lesson
-planning, scripting, personalization, whiteboard direction, an HTTP API, and
-worker infrastructure remain placeholders. The current entry point accepts a
-pre-built scene-set JSON file; it does not yet create one from a book or PDF.
+**Status:** scene planning, deterministic packaging, scene generation,
+measurable validation, and final-video assembly are implemented and integrated.
+Document ingestion, lesson planning, personalization, a live LLM adapter, an HTTP
+API, and worker infrastructure remain placeholders. The full entry point accepts
+a `LessonPlan` plus per-scene planning artifacts; it does not yet create them from
+a book or PDF.
 
 ## Product vision
 
@@ -32,7 +33,8 @@ has only been contract-tested with a fake client in this environment.
 ## Current user journey
 
 ```text
-SceneSet JSON
+LessonPlan + planning artifacts
+  -> package and adapt each scene
   -> generate each scene with synchronized narration
   -> measure and validate the media
   -> retry explicitly retryable failures or reject the job
@@ -57,7 +59,12 @@ synchronous and cooperative; there is no background service or web UI.
 
 Implemented:
 
-- A typed scene/job contract with legal state transitions.
+- Planning contracts for source excerpts, lesson/scene briefs, scripts,
+  whiteboard direction, visual plans, and planning timelines.
+- Script, Whiteboard Director, and Example & Visual agents behind an injected
+  structured LLM boundary, plus deterministic scene packaging and a
+  planning-to-runtime adapter.
+- A typed runtime scene/job contract with legal state transitions.
 - Local deterministic and optional Gemini Omni generation adapters.
 - Retry, idempotency, cancellation, measured metadata, and artifact storage.
 - Audio/video validation with explicit pass, warning, fail, and unavailable
@@ -67,8 +74,11 @@ Implemented:
 
 Not implemented:
 
-- PDF/book ingestion, content normalization, lesson planning, scripting,
-  personalization, whiteboard direction, and visual design.
+- PDF/book ingestion, content normalization, lesson planning, and
+  personalization.
+- A live LLM provider adapter.
+- Per-segment narration timing and whiteboard primitive rendering in the local
+  renderer.
 - OCR, semantic narration-to-visual alignment, and source-grounded accuracy
   scoring.
 - HTTP API, database, worker queue, distributed locking, authentication, or

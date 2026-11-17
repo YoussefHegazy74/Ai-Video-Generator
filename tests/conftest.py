@@ -32,6 +32,13 @@ from ai_video_generator.models.lesson_plan import (
 )
 from ai_video_generator.models.scene import ScenePlanningInput
 from ai_video_generator.models.source import PageRange, SourceExcerpt, SourceReference
+from ai_video_generator.services.storage_service import ArtifactStorageService
+from ai_video_generator.storage.artifact_registry import ArtifactRegistry
+from ai_video_generator.storage.file_storage import LocalFileStorage
+from ai_video_generator.video.audio_video_validation import ValidationPolicy
+from ai_video_generator.video.media_probe import FFmpegTools
+
+from tests.helpers import require_ffmpeg
 
 
 class FakeLLM:
@@ -279,3 +286,54 @@ def whiteboard_payload() -> dict[str, Any]:
 @pytest.fixture
 def fake_llm_factory():
     return FakeLLM
+
+
+# ---------------------------------------------------------------------------
+# Runtime generation / validation / assembly fixtures
+#
+# These support the media pipeline tests. FFmpeg-dependent tests skip with an
+# explicit prerequisite message when the tools are unavailable.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def repo_root() -> Path:
+    return ROOT
+
+
+@pytest.fixture()
+def media_tools() -> FFmpegTools:
+    tools = FFmpegTools(timeout_seconds=30)
+    require_ffmpeg(tools)
+    return tools
+
+
+@pytest.fixture()
+def file_storage(tmp_path: Path) -> LocalFileStorage:
+    return LocalFileStorage(tmp_path / "artifacts", temp_root=tmp_path / "work")
+
+
+@pytest.fixture()
+def artifact_storage(
+    file_storage: LocalFileStorage, tmp_path: Path
+) -> ArtifactStorageService:
+    registry = ArtifactRegistry(tmp_path / "artifacts" / "artifact_registry.json")
+    return ArtifactStorageService(file_storage, registry)
+
+
+@pytest.fixture()
+def validation_policy() -> ValidationPolicy:
+    return ValidationPolicy(
+        require_audio=True,
+        duration_warning_tolerance_seconds=0.5,
+        duration_failure_tolerance_seconds=1.0,
+        min_scene_duration_seconds=0.5,
+        max_scene_duration_seconds=30.0,
+        sync_tolerance_seconds=0.35,
+        sync_failure_tolerance_seconds=0.9,
+        min_width=160,
+        min_height=90,
+        min_fps=5.0,
+        min_media_bytes=1024,
+        blank_frame_stddev_threshold=2.0,
+    )

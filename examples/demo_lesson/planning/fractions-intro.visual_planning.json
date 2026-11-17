@@ -1,0 +1,29 @@
+{
+  "scene_id": "fractions-intro",
+  "plan": {
+    "scene_id": "fractions-intro",
+    "items": [
+      {
+        "visual_id": "vis-pizza",
+        "purpose": "explain_concept",
+        "kind": "analogy",
+        "description": "Show a pizza split into two equal slices with one slice highlighted as one half.",
+        "segment_ids": [
+          "seg-1"
+        ],
+        "key_point_ids": [
+          "kp-1"
+        ],
+        "source_ids": [
+          "src-frac-1"
+        ],
+        "exact_text": [
+          "1/2 of a pizza"
+        ],
+        "accessibility_notes": []
+      }
+    ],
+    "schema_version": "1.0"
+  },
+  "schema_version": "1.0"
+}

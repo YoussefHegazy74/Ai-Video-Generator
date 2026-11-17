@@ -31,7 +31,7 @@ from ai_video_generator.models.scene import SceneScript
 from ai_video_generator.models.scene_planning import ScenePlanningResult
 from ai_video_generator.models.visual_plan import VisualItem, VisualPlan
 from ai_video_generator.models.visual_planning import VisualPlanningResult
-from ai_video_generator.video.generation_contract import ScenePackage
+from ai_video_generator.video.scene_contract import ScenePackage
 from ai_video_generator.video.scene_timing import (
     DurationLimits,
     TimingSeverity,

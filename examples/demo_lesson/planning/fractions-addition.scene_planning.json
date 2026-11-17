@@ -1,0 +1,194 @@
+{
+  "lesson_id": "lesson-fractions-demo",
+  "scene": {
+    "scene_id": "fractions-addition",
+    "sequence": 2,
+    "title": "Adding Like Fractions",
+    "objective": "Add fractions that share the same denominator.",
+    "topics": [
+      "fractions",
+      "addition",
+      "like denominators"
+    ],
+    "target_duration_seconds": 13.0,
+    "source_excerpts": [
+      {
+        "source_id": "src-frac-2",
+        "reference": {
+          "document_id": "demo-fractions",
+          "page_number": 2,
+          "section_title": "Adding Like Fractions",
+          "anchor": null
+        },
+        "text": "To add fractions with the same denominator, add the numerators and keep the denominator unchanged. One fifth plus two fifths equals three fifths.",
+        "kind": "text",
+        "caption": null
+      }
+    ]
+  },
+  "script": {
+    "scene_id": "fractions-addition",
+    "language": "en",
+    "segments": [
+      {
+        "segment_id": "seg-1",
+        "text": "Now we add fractions that share the same denominator. When the slices are the same size, we simply add the numerators.",
+        "estimated_duration_seconds": 6.5,
+        "key_point_ids": [
+          "kp-1"
+        ]
+      },
+      {
+        "segment_id": "seg-2",
+        "text": "Keep the denominator unchanged. One fifth plus two fifths equals three fifths.",
+        "estimated_duration_seconds": 6.0,
+        "key_point_ids": [
+          "kp-2"
+        ]
+      }
+    ],
+    "key_points": [
+      {
+        "key_point_id": "kp-1",
+        "text": "Fractions with the same denominator can be added directly.",
+        "source_ids": [
+          "src-frac-2"
+        ],
+        "importance": "core"
+      },
+      {
+        "key_point_id": "kp-2",
+        "text": "Add the numerators and keep the denominator unchanged.",
+        "source_ids": [
+          "src-frac-2"
+        ],
+        "importance": "core"
+      }
+    ],
+    "delivery_notes": [
+      "Emphasize that the denominator does not change."
+    ],
+    "schema_version": "1.0"
+  },
+  "whiteboard": {
+    "scene_id": "fractions-addition",
+    "layout": {
+      "regions": [
+        {
+          "region_id": "title",
+          "kind": "title",
+          "x": 0.0,
+          "y": 0.0,
+          "width": 1.0,
+          "height": 0.12,
+          "label": null
+        },
+        {
+          "region_id": "main",
+          "kind": "content",
+          "x": 0.02,
+          "y": 0.16,
+          "width": 0.96,
+          "height": 0.72,
+          "label": null
+        }
+      ]
+    },
+    "drawing": {
+      "actions": [
+        {
+          "action_id": "act-1",
+          "action_type": "write_text",
+          "segment_id": "seg-1",
+          "region_id": "main",
+          "order": 1,
+          "text": "Same denominator: add the numerators",
+          "points": [],
+          "color": null,
+          "stroke_width": null,
+          "duration_seconds": null,
+          "label": null
+        },
+        {
+          "action_id": "act-2",
+          "action_type": "write_equation",
+          "segment_id": "seg-2",
+          "region_id": "main",
+          "order": 2,
+          "text": "1/5 + 2/5 = 3/5",
+          "points": [],
+          "color": null,
+          "stroke_width": null,
+          "duration_seconds": null,
+          "label": null
+        },
+        {
+          "action_id": "act-3",
+          "action_type": "write_text",
+          "segment_id": "seg-2",
+          "region_id": "main",
+          "order": 3,
+          "text": "Keep the denominator",
+          "points": [],
+          "color": null,
+          "stroke_width": null,
+          "duration_seconds": null,
+          "label": null
+        }
+      ]
+    },
+    "handwriting": {
+      "cues": [
+        {
+          "cue_id": "hw-1",
+          "action_id": "act-1",
+          "mode": "handwrite",
+          "order": 1,
+          "reveal_duration_seconds": null
+        },
+        {
+          "cue_id": "hw-2",
+          "action_id": "act-2",
+          "mode": "equation",
+          "order": 2,
+          "reveal_duration_seconds": null
+        },
+        {
+          "cue_id": "hw-3",
+          "action_id": "act-3",
+          "mode": "handwrite",
+          "order": 3,
+          "reveal_duration_seconds": null
+        }
+      ]
+    },
+    "highlights": {
+      "cues": [
+        {
+          "highlight_id": "hl-1",
+          "target_action_id": "act-2",
+          "segment_id": "seg-2",
+          "style": "underline",
+          "order": 1,
+          "color": null,
+          "duration_seconds": null
+        }
+      ]
+    },
+    "continuity": {
+      "mode": "continue_board",
+      "carry_over_action_ids": [
+        "act-4"
+      ],
+      "clear_region_ids": [],
+      "notes": [
+        "Keep the numerator/denominator labels from the previous scene."
+      ]
+    },
+    "presentation_notes": [
+      "Work the example left to right."
+    ],
+    "schema_version": "1.0"
+  },
+  "schema_version": "1.0"
+}

@@ -1,0 +1,70 @@
+{
+  "lesson_id": "lesson-fractions-demo",
+  "title": "Adding Fractions",
+  "selected_pages": [
+    {
+      "start_page": 1,
+      "end_page": 2
+    }
+  ],
+  "preferences": {
+    "audience_level": "beginner",
+    "language": "en",
+    "teaching_style": "cooking",
+    "style_guidance": "Use simple kitchen-sharing analogies without changing the mathematical facts."
+  },
+  "scenes": [
+    {
+      "scene_id": "fractions-intro",
+      "sequence": 1,
+      "title": "What Is a Fraction?",
+      "objective": "Explain the numerator and denominator of a fraction.",
+      "topics": [
+        "fractions",
+        "numerator",
+        "denominator"
+      ],
+      "target_duration_seconds": 11.0,
+      "source_excerpts": [
+        {
+          "source_id": "src-frac-1",
+          "reference": {
+            "document_id": "demo-fractions",
+            "page_number": 1,
+            "section_title": "What Is a Fraction?",
+            "anchor": null
+          },
+          "text": "A fraction represents a part of a whole. The top number is the numerator. The bottom number is the denominator and shows how many equal parts the whole is divided into.",
+          "kind": "text",
+          "caption": null
+        }
+      ]
+    },
+    {
+      "scene_id": "fractions-addition",
+      "sequence": 2,
+      "title": "Adding Like Fractions",
+      "objective": "Add fractions that share the same denominator.",
+      "topics": [
+        "fractions",
+        "addition",
+        "like denominators"
+      ],
+      "target_duration_seconds": 13.0,
+      "source_excerpts": [
+        {
+          "source_id": "src-frac-2",
+          "reference": {
+            "document_id": "demo-fractions",
+            "page_number": 2,
+            "section_title": "Adding Like Fractions",
+            "anchor": null
+          },
+          "text": "To add fractions with the same denominator, add the numerators and keep the denominator unchanged. One fifth plus two fifths equals three fifths.",
+          "kind": "text",
+          "caption": null
+        }
+      ]
+    }
+  ]
+}

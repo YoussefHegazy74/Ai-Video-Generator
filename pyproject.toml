@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ai-video-generator"
 version = "0.1.0"
-description = "Educational whiteboard video generation pipeline (Parts 5-7)"
+description = "AI educational whiteboard video generator: planning, packaging, generation, validation, and assembly"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

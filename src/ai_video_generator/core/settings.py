@@ -147,8 +147,47 @@ class GenerationSettings(BaseModel):
         return value
 
 
+class PlanningSettings(BaseModel):
+    """Scene-package duration policy and whiteboard presentation defaults.
+
+    ``DurationLimits`` are enforced deterministically by the Scene Packager
+    before any media work. Runtime presentation values are applied by the
+    planning-to-runtime adapter; they are not pedagogical settings.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    min_scene_duration_seconds: float = Field(default=5.0, gt=0, le=600)
+    max_scene_duration_seconds: float = Field(default=120.0, gt=0, le=600)
+    duration_tolerance_seconds: float = Field(default=0.0, ge=0, le=60)
+    whiteboard_style: str = Field(default="clean_whiteboard", min_length=1)
+    show_scene_title: bool = True
+    background_color: str = "#F8FAFC"
+    accent_color: str = "#2563EB"
+
+    @field_validator("max_scene_duration_seconds")
+    @classmethod
+    def _max_not_below_min(cls, value: float, info: Any) -> float:
+        minimum = info.data.get("min_scene_duration_seconds")
+        if minimum is not None and value < minimum:
+            raise ValueError(
+                "max_scene_duration_seconds must be >= "
+                "min_scene_duration_seconds"
+            )
+        return value
+
+    @field_validator("background_color", "accent_color")
+    @classmethod
+    def _valid_color(cls, value: str) -> str:
+        import re
+
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", value):
+            raise ValueError("colors must use #RRGGBB format")
+        return value.upper()
+
+
 class AppSettings(BaseModel):
-    """Fully resolved runtime settings for Parts 5-7."""
+    """Fully resolved runtime settings for the integrated pipeline."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -160,6 +199,7 @@ class AppSettings(BaseModel):
     media: MediaSettings = Field(default_factory=MediaSettings)
     provider: ProviderSettings = Field(default_factory=ProviderSettings)
     generation: GenerationSettings = Field(default_factory=GenerationSettings)
+    planning: PlanningSettings = Field(default_factory=PlanningSettings)
     validation: ValidationPolicy = Field(default_factory=ValidationPolicy)
     assembly: AssemblyOptions = Field(default_factory=AssemblyOptions)
 
@@ -336,6 +376,20 @@ def _apply_env_overrides(
             "int",
         ),
         (
+            "AIVG_PLANNING_MIN_SCENE_DURATION_SECONDS",
+            ("planning", "min_scene_duration_seconds"),
+            "float",
+        ),
+        (
+            "AIVG_PLANNING_MAX_SCENE_DURATION_SECONDS",
+            ("planning", "max_scene_duration_seconds"),
+            "float",
+        ),
+        ("AIVG_PLANNING_WHITEBOARD_STYLE", ("planning", "whiteboard_style"), "str"),
+        ("AIVG_PLANNING_SHOW_SCENE_TITLE", ("planning", "show_scene_title"), "bool"),
+        ("AIVG_PLANNING_BACKGROUND_COLOR", ("planning", "background_color"), "str"),
+        ("AIVG_PLANNING_ACCENT_COLOR", ("planning", "accent_color"), "str"),
+        (
             "AIVG_VALIDATION_MIN_SCENE_DURATION_SECONDS",
             ("validation", "min_scene_duration_seconds"),
             "float",
@@ -501,6 +555,7 @@ __all__ = [
     "GeminiSettings",
     "GenerationSettings",
     "MediaSettings",
+    "PlanningSettings",
     "ProviderSettings",
     "StorageSettings",
     "WhiteboardSettings",

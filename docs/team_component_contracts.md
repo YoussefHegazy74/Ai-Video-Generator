@@ -4,10 +4,11 @@
 **Owner:** scene-planning component (Script Agent, Whiteboard Director Agent, and
 their shared contracts, prompts, schemas, validation, and tests).
 **Scope:** one planned lesson scene at a time.
-**Last verified:** the full dependency-free test suite passed with a
-deterministic fake LLM, including an integration flow through visual planning,
-scene packaging, and prompt-data construction. No live provider, TTS, renderer,
-or end-to-end video test has been run.
+**Last verified:** the full test suite passes with a deterministic fake LLM,
+including an integration flow through visual planning, scene packaging, runtime
+adaptation, generation, validation, and assembly. A real end-to-end local video
+was produced with the deterministic whiteboard renderer and FFmpeg flite
+narration. No live LLM or Gemini call has been run.
 
 This document is the coordination boundary between this component and the
 planning/personalization, ingestion, provider, packaging, generation, and
@@ -53,7 +54,10 @@ this component's ownership:
 | Canonical scene package | `src/ai_video_generator/video/scene_contract.py` |
 | Deterministic Scene Packager | `src/ai_video_generator/agents/scene_packaging/scene_packager_agent.py` |
 | Provider-neutral prompt data | `src/ai_video_generator/agents/scene_packaging/scene_prompt_builder.py` |
-| Cross-component tests | `tests/unit/test_scene_timing.py`, `test_visual_plan_contract.py`, `test_visual_design_agent.py`, `test_scene_package_contract.py`, `test_scene_packager.py`, `test_scene_prompt_builder.py`, `test_scene_pipeline_integration.py` |
+| Planning-to-runtime adapter | `src/ai_video_generator/agents/orchestration/runtime_adapter.py` |
+| Integrated lesson pipeline | `src/ai_video_generator/agents/orchestration/lesson_pipeline.py` |
+| Pipeline factories | `src/ai_video_generator/services/pipeline_factory.py` |
+| Cross-component tests | `tests/unit/test_scene_timing.py`, `test_visual_plan_contract.py`, `test_visual_design_agent.py`, `test_scene_package_contract.py`, `test_scene_packager.py`, `test_scene_prompt_builder.py`, `test_scene_pipeline_integration.py`, `test_runtime_adapter.py`, `test_lesson_pipeline.py`, `test_config_integration.py`, `tests/integration/test_lesson_pipeline_integration.py` |
 
 ## 2. Explicit non-goals
 
@@ -836,6 +840,12 @@ single Markdown JSON code fence but reject prose or non-object JSON.
   and explicit `DurationLimits`; compose the canonical `ScenePackage`. The
   implemented packager is deterministic and provider-neutral. Do not ask this
   component to produce provider prompts or media.
+- **Planning-to-runtime adapter:** `SceneRuntimeAdapter` converts `ScenePackage`
+  plus its `SceneBrief` into the runtime `SceneSpec`/`SceneSet`. It copies
+  narration text and source provenance, maps whiteboard write actions and visual
+  exact text into runtime text elements, and rejects runtime-unsafe scene IDs. It
+  is the only supported bridge; provider code must not import planning contracts
+  directly.
 - **Narration/TTS:** preserve `segment_id` values and segment order. Attach real
   audio timing downstream per segment. Estimated durations are planning hints,
   not rendered truth.
@@ -848,9 +858,11 @@ single Markdown JSON code fence but reject prose or non-object JSON.
   contracts.
 - **Assembly:** preserve `scene_id`, `sequence`, source references, and the
   continuity chain across scenes.
-- **Orchestration:** call the Script Agent first, then the Whiteboard Director
-  Agent with the resulting script and the previous scene's plan. Only the first
-  scene should pass `previous_plan=None`.
+- **Orchestration:** `LessonPlanningPipeline` calls the Script Agent first, then
+  the Whiteboard Director Agent with the resulting script and the previous
+  scene's plan, then the Example & Visual Agent, then the Scene Packager. Only
+  the first scene passes `previous_plan=None`. `LessonPipeline` then adapts the
+  packages and invokes `WorkflowOrchestrator`.
 
 ### Visual Design Agent boundary
 
@@ -887,10 +899,16 @@ implementation and need team agreement.
 - **No factual/semantic verification.** Validation grounds citations to allowed
   source IDs; it cannot prove that narration faithfully represents the source.
   Human or future semantic review is required for factual accuracy.
-- **No live or end-to-end video test.** The suite uses a deterministic fake LLM
-  and exercises planning, packaging, and prompt-data construction. No live
-  provider, TTS, audio, renderer, or final video generation path has been
-  exercised.
+- **No live LLM test.** The suite uses a deterministic fake LLM. A real local
+  end-to-end run (packaging, adaptation, deterministic rendering, local flite
+  narration, validation, assembly) has been executed; no live LLM or Gemini call
+  has been made.
+- **Segment timing is flattened at the runtime boundary.** Runtime `SceneSpec`
+  carries one narration string and a target duration. Whiteboard cues cannot yet
+  be synchronized to individual narration segments.
+- **Renderer fidelity is limited.** The deterministic renderer consumes text,
+  colors, title text, and a step count; it does not draw the whiteboard plan's
+  geometry, handwriting paths, or carried actions.
 - **No provider adapter.** The local `LLMClient` protocol is a boundary, not an
   implementation. API keys, retries, rate limits, and provider error mapping are
   not implemented here.
@@ -935,12 +953,12 @@ the fillable owner checklist and confirmation questions in section 7 of
 | 3 | Source ingestion contract | Requires agreement from another teammate | Ingestion/planning: canonical excerpt shape, stable IDs, multi-document support, page numbering, figure/equation/code/table representation | `SourceKind` and `SourceExcerpt` are provisional |
 | 4 | Provider interface | Requires a downstream interface definition | Provider/orchestration: implement `LLMClient` or define a shared protocol; structured output and error mapping | Local `LLMClient` protocol, `LLMRequest`/`LLMResponse` |
 | 5 | Segment-level audio alignment | Requires a downstream interface definition | TTS/timing: preserve `segment_id`/order and return per-segment real timing; define split/merge mapping | Segment IDs are the only timing anchors; no absolute timestamps |
-| 6 | Duration responsibility | Requires agreement from another teammate | Planning/TTS/orchestration: who enforces target duration, tolerance, and re-planning | Planning warns; packager blocks explicit duration-limit errors and retains target-mismatch warnings |
+| 6 | Duration responsibility | Partially resolved | Planning/TTS/orchestration: who enforces target duration, tolerance, and re-planning | Packager blocks `planning.*` duration-limit errors; runtime target is the script timeline; validation measures the rendered clip against it and rejects beyond `validation.duration_failure_tolerance_seconds` |
 | 7 | Visual Design integration | Requires agreement from another teammate | Visual Design/packaging: how assets merge with board regions, z-order, image placement | Semantic `VisualPlan` implemented; external asset merge and z-order remain open |
-| 8 | Canonical scene contract | Requires a downstream interface definition | Provider/generation: define mapping from provider-neutral `ScenePackage` to provider payloads | Canonical `ScenePackage` implemented; provider-specific mapping remains open |
+| 8 | Canonical scene contract | Resolved for the runtime boundary | Provider/generation: map `ScenePackage` to runtime scenes | `SceneRuntimeAdapter` maps packages to `SceneSpec`/`SceneSet`; provider-specific prompt mapping remains provider-owned |
 | 9 | Renderer semantics | Requires a downstream interface definition | Renderer: coordinate origin, aspect ratio, font/stroke defaults, highlight behavior, `clear_regions` representation | Normalized `0.0`–`1.0` coordinates and named primitives only |
 | 10 | Validation policy | Requires agreement from another teammate | Orchestration/review: which warnings block packaging; who owns factual/semantic review | Agent warnings are advisory; packager blocks duration errors and retains target-mismatch warnings |
-| 11 | Scene and lesson ID format | Requires agreement from another teammate | Planning/database/API: confirm compatibility with `[A-Za-z0-9][A-Za-z0-9._:-]{0,127}` | Conservative exact-match ID pattern |
+| 11 | Scene and lesson ID format | Resolved with a runtime constraint | Planning/database/API: confirm compatibility with `[A-Za-z0-9][A-Za-z0-9._:-]{0,127}` | Planning IDs use the wider pattern; runtime scene IDs are limited to 64 chars without `:` and the adapter rejects incompatible IDs with a typed error |
 | 12 | Versioning and compatibility | Not currently blocking local tests | All consumers: record schema versions and decide fail-versus-migrate for unknown versions | Unknown versions are rejected; implemented contracts are `1.0` |
 | 13 | Human review and citation display | Requires agreement from another teammate | Product/review/UI: whether citations appear on-screen and how `SourceReference` is rendered without internal paths | References are preserved; display policy is unimplemented |
 
@@ -958,9 +976,10 @@ Run from the repository root:
 
 ```bash
 python -m pytest -q -p no:cacheprovider
-python -m compileall -q src tests
+python -m compileall -q src tests examples scripts
 git diff --check
 python examples/scene_planning_integration.py
+python scripts/run_lesson_pipeline.py --lesson-plan examples/demo_lesson/lesson_plan.json --planning-dir examples/demo_lesson/planning --job-id integration-check
 ```
 
 The unit tests use a deterministic fake LLM and require no credentials or
@@ -998,5 +1017,6 @@ network access. They cover:
 - the runnable `examples/scene_planning_integration.py` flow with the deterministic
   fake LLM, exact result round-trip, and separate selected-page handoff.
 
-The suite remains provider-free. Live provider, TTS, rendering, and
-final-video integration remain team-owned follow-up work.
+The suite remains provider-free and network-free. The local renderer and FFmpeg
+assembly path are exercised by integration tests when the tools are available.
+Live LLM provider integration remains team-owned follow-up work.

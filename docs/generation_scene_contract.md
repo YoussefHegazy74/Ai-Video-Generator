@@ -1,8 +1,12 @@
-# Scene Contract
+# Runtime Scene Contract (generation, validation, assembly)
 
-**Status:** implemented in `src/ai_video_generator/video/scene_contract.py`.
-`src/ai_video_generator/models/scene.py` re-exports the same models; there is no
-second scene schema.
+**Status:** implemented in `src/ai_video_generator/video/generation_contract.py`.
+
+This is the runtime media contract. It is separate from the planning
+`ScenePackage` documented in [`scene_contract.md`](scene_contract.md).
+`SceneRuntimeAdapter` (`agents/orchestration/runtime_adapter.py`) is the only
+supported bridge from a planning package to this contract; `models/scene.py`
+holds the planning `SceneScript` models and does not re-export these classes.
 
 The contract is the shared boundary between generation, validation, assembly,
 persistence, and a future API. It is provider-neutral: provider-specific facts

@@ -4,8 +4,10 @@
 **Implementation:** `src/ai_video_generator/video/scene_contract.py`.
 **Producer:** `ScenePackager` in
 `src/ai_video_generator/agents/scene_packaging/scene_packager_agent.py`.
-**Consumers:** provider-neutral scene prompt construction and downstream
-generation, validation, and assembly components.
+**Consumers:** `SceneRuntimeAdapter` and downstream generation, validation, and
+assembly components.
+**Runtime counterpart:** [`generation_scene_contract.md`](generation_scene_contract.md)
+documents the `SceneSpec`/`SceneSet` media contract.
 
 `ScenePackage` is the canonical, provider-neutral description of one planned
 scene. It composes the existing script, visual, whiteboard, timing, and source

@@ -1,4 +1,7 @@
 # Scene validation and final assembly defaults.
+# The 5-120 s scene range matches the configured planning duration policy and
+# the deterministic renderer's 120 s capability. Target-duration drift is
+# still checked per scene against the LLM's planning estimate.
 # AIVG_VALIDATION_* and AIVG_ASSEMBLY_* environment variables override these
 # values. Validation is a gate: only blocking failures prevent assembly.
 
@@ -7,8 +10,8 @@ validation:
   duration_warning_tolerance_seconds: 1.5
   duration_failure_tolerance_seconds: 3.0
   enforce_project_duration_range: true
-  min_scene_duration_seconds: 8.0
-  max_scene_duration_seconds: 15.0
+  min_scene_duration_seconds: 5.0
+  max_scene_duration_seconds: 120.0
   sync_tolerance_seconds: 0.35
   sync_failure_tolerance_seconds: 0.9
   min_width: 640

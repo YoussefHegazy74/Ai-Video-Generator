@@ -1,7 +1,9 @@
 # Implementation Plan — Parts 5, 6, and 7
 
 **Status:** implemented and tested (2026-10-25). This document is retained as the
-approved plan and implementation record.
+approved plan and implementation record. The audit findings below describe the
+repository before this work and before the full-team integration; see
+`docs/full_team_integration_report.md` for the integrated state.
 **Scope:** scene generation, scene validation, and final video assembly for the
 existing AI Educational Video Generator repository.
 **Audit date:** 2026-10-24.

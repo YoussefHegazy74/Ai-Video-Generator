@@ -3,9 +3,11 @@
 **Audience:** planning/personalization, ingestion, provider, packaging, TTS,
 rendering, orchestration, and assembly owners.
 **Status:** the Script Agent, Whiteboard Director Agent, shared contracts,
-Example & Visual Agent, timing, Scene Packager, ScenePromptBuilder, and their
-cross-component flow are implemented and tested with a deterministic fake LLM.
-No live provider, TTS, renderer, or end-to-end video path has been tested.
+Example & Visual Agent, timing, Scene Packager, ScenePromptBuilder, runtime
+adapter, and full lesson pipeline are implemented and tested with a deterministic
+fake LLM. A real end-to-end local video has been rendered with the deterministic
+whiteboard provider and FFmpeg flite narration. No live LLM or Gemini call has
+been made.
 
 This is the short integration guide. The full contract, examples, renderer
 requirements, and ownership table are in
@@ -269,12 +271,14 @@ contract for the full primitive table.
 
 ## 6. Known limitations
 
-- Tests use a fake LLM only. No live provider, TTS, audio, renderer, or final
-  video generation has been exercised.
-- Packaging and prompt data are deterministic and provider-neutral; there is no
-  provider-specific payload or actual audio timing yet.
+- Tests use a fake LLM only. A real local renderer/assembly path has been
+  exercised; no live LLM or Gemini call has been made.
+- Packaging and prompt data are deterministic and provider-neutral. The runtime
+  adapter produces `SceneSpec`/`SceneSet`, but per-segment audio timing is not
+  carried into generation.
 - No semantic fact-checking beyond source-ID grounding.
-- No provider adapter, retries, persistence, API routes, or job state.
+- No live LLM provider adapter. Retries, persistence, job state, and the runtime
+  orchestrator exist on the media side; there is no API layer.
 - Renderer semantics (origin, aspect ratio, circle/rectangle interpretation,
   z-order) are provisional.
 - External visual assets, image placement, z-order, and on-screen citation
@@ -452,9 +456,12 @@ need team-wide confirmation before cross-component integration.
   implemented in `video/scene_contract.py`; `ScenePlanningResult` remains the
   combined planning artifact. Packaging is deterministic and makes no provider
   calls. `selected_pages` is not duplicated in the package.
-- **Confirm:** Is this package shape the accepted handoff for provider-specific
-  packaging, and which consumer owns the mapping from `ScenePackage` to provider
-  payloads? Does any consumer require `selected_pages` inside the package? Are
+- **Integration resolution:** `SceneRuntimeAdapter` owns the mapping from
+  `ScenePackage` to the runtime `SceneSpec`/`SceneSet`; provider-specific prompt
+  construction remains provider-owned. `LessonPipeline` runs the handoff.
+  `selected_pages` remains outside the package; the adapter receives the
+  `LessonPlan` and therefore has access to the original selection when needed.
+- **Confirm:** Does any consumer require `selected_pages` inside the package? Are
   the schema version and strict unknown-field rejection acceptable?
 - **Scene planning alone:** No.
 

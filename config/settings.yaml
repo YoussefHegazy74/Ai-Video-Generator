@@ -1,4 +1,4 @@
-# Runtime settings for the implemented Parts 5-7 pipeline.
+# Runtime settings for the integrated planning and media pipeline.
 # Relative paths are resolved against the repository root.
 # AIVG_* environment variables override these values.
 
@@ -40,3 +40,12 @@ generation:
   timeout_seconds: 600
   max_validation_attempts: 2
   sync_tolerance_seconds: 0.35
+
+planning:
+  min_scene_duration_seconds: 5
+  max_scene_duration_seconds: 120
+  duration_tolerance_seconds: 0
+  whiteboard_style: clean_whiteboard
+  show_scene_title: true
+  background_color: "#F8FAFC"
+  accent_color: "#2563EB"

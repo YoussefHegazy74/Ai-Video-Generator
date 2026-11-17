@@ -1,0 +1,31 @@
+{
+  "scene_id": "fractions-addition",
+  "plan": {
+    "scene_id": "fractions-addition",
+    "items": [
+      {
+        "visual_id": "vis-shared-slices",
+        "purpose": "show_process",
+        "kind": "diagram",
+        "description": "Show two fifths being combined into three fifths while the denominator stays the same.",
+        "segment_ids": [
+          "seg-1",
+          "seg-2"
+        ],
+        "key_point_ids": [
+          "kp-1",
+          "kp-2"
+        ],
+        "source_ids": [
+          "src-frac-2"
+        ],
+        "exact_text": [
+          "denominator stays 5"
+        ],
+        "accessibility_notes": []
+      }
+    ],
+    "schema_version": "1.0"
+  },
+  "schema_version": "1.0"
+}

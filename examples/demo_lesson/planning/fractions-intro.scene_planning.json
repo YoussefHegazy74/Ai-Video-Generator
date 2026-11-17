@@ -1,0 +1,210 @@
+{
+  "lesson_id": "lesson-fractions-demo",
+  "scene": {
+    "scene_id": "fractions-intro",
+    "sequence": 1,
+    "title": "What Is a Fraction?",
+    "objective": "Explain the numerator and denominator of a fraction.",
+    "topics": [
+      "fractions",
+      "numerator",
+      "denominator"
+    ],
+    "target_duration_seconds": 11.0,
+    "source_excerpts": [
+      {
+        "source_id": "src-frac-1",
+        "reference": {
+          "document_id": "demo-fractions",
+          "page_number": 1,
+          "section_title": "What Is a Fraction?",
+          "anchor": null
+        },
+        "text": "A fraction represents a part of a whole. The top number is the numerator. The bottom number is the denominator and shows how many equal parts the whole is divided into.",
+        "kind": "text",
+        "caption": null
+      }
+    ]
+  },
+  "script": {
+    "scene_id": "fractions-intro",
+    "language": "en",
+    "segments": [
+      {
+        "segment_id": "seg-1",
+        "text": "Think of a pizza cut into equal slices. A fraction shows how many slices you have, out of the whole pizza.",
+        "estimated_duration_seconds": 6.0,
+        "key_point_ids": [
+          "kp-1"
+        ]
+      },
+      {
+        "segment_id": "seg-2",
+        "text": "The top number is the numerator. The bottom number is the denominator, which counts the equal parts in the whole.",
+        "estimated_duration_seconds": 7.0,
+        "key_point_ids": [
+          "kp-2"
+        ]
+      }
+    ],
+    "key_points": [
+      {
+        "key_point_id": "kp-1",
+        "text": "A fraction represents a part of a whole.",
+        "source_ids": [
+          "src-frac-1"
+        ],
+        "importance": "core"
+      },
+      {
+        "key_point_id": "kp-2",
+        "text": "The numerator is on top and the denominator is on the bottom.",
+        "source_ids": [
+          "src-frac-1"
+        ],
+        "importance": "core"
+      }
+    ],
+    "delivery_notes": [
+      "Pause before naming the numerator and denominator."
+    ],
+    "schema_version": "1.0"
+  },
+  "whiteboard": {
+    "scene_id": "fractions-intro",
+    "layout": {
+      "regions": [
+        {
+          "region_id": "title",
+          "kind": "title",
+          "x": 0.0,
+          "y": 0.0,
+          "width": 1.0,
+          "height": 0.12,
+          "label": null
+        },
+        {
+          "region_id": "main",
+          "kind": "content",
+          "x": 0.02,
+          "y": 0.16,
+          "width": 0.96,
+          "height": 0.72,
+          "label": null
+        }
+      ]
+    },
+    "drawing": {
+      "actions": [
+        {
+          "action_id": "act-1",
+          "action_type": "write_text",
+          "segment_id": "seg-1",
+          "region_id": "main",
+          "order": 1,
+          "text": "A fraction is part of a whole",
+          "points": [],
+          "color": null,
+          "stroke_width": null,
+          "duration_seconds": null,
+          "label": null
+        },
+        {
+          "action_id": "act-2",
+          "action_type": "write_equation",
+          "segment_id": "seg-2",
+          "region_id": "main",
+          "order": 2,
+          "text": "1/2",
+          "points": [],
+          "color": null,
+          "stroke_width": null,
+          "duration_seconds": null,
+          "label": null
+        },
+        {
+          "action_id": "act-3",
+          "action_type": "write_text",
+          "segment_id": "seg-2",
+          "region_id": "main",
+          "order": 3,
+          "text": "Numerator = top number",
+          "points": [],
+          "color": null,
+          "stroke_width": null,
+          "duration_seconds": null,
+          "label": null
+        },
+        {
+          "action_id": "act-4",
+          "action_type": "write_text",
+          "segment_id": "seg-2",
+          "region_id": "main",
+          "order": 4,
+          "text": "Denominator = bottom number",
+          "points": [],
+          "color": null,
+          "stroke_width": null,
+          "duration_seconds": null,
+          "label": null
+        }
+      ]
+    },
+    "handwriting": {
+      "cues": [
+        {
+          "cue_id": "hw-1",
+          "action_id": "act-1",
+          "mode": "handwrite",
+          "order": 1,
+          "reveal_duration_seconds": null
+        },
+        {
+          "cue_id": "hw-2",
+          "action_id": "act-2",
+          "mode": "equation",
+          "order": 2,
+          "reveal_duration_seconds": null
+        },
+        {
+          "cue_id": "hw-3",
+          "action_id": "act-3",
+          "mode": "handwrite",
+          "order": 3,
+          "reveal_duration_seconds": null
+        },
+        {
+          "cue_id": "hw-4",
+          "action_id": "act-4",
+          "mode": "handwrite",
+          "order": 4,
+          "reveal_duration_seconds": null
+        }
+      ]
+    },
+    "highlights": {
+      "cues": [
+        {
+          "highlight_id": "hl-1",
+          "target_action_id": "act-2",
+          "segment_id": "seg-2",
+          "style": "marker",
+          "order": 1,
+          "color": null,
+          "duration_seconds": null
+        }
+      ]
+    },
+    "continuity": {
+      "mode": "fresh_board",
+      "carry_over_action_ids": [],
+      "clear_region_ids": [],
+      "notes": []
+    },
+    "presentation_notes": [
+      "Reveal the picture first, then the numbers."
+    ],
+    "schema_version": "1.0"
+  },
+  "schema_version": "1.0"
+}

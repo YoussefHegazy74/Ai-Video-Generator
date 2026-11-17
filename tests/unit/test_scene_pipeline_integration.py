@@ -33,7 +33,7 @@ from ai_video_generator.agents.scripting import ScriptAgent
 from ai_video_generator.agents.visual_design import VisualDesignAgent
 from ai_video_generator.agents.whiteboard import WhiteboardDirectorAgent
 from ai_video_generator.models.scene_planning import ScenePlanningResult
-from ai_video_generator.video.generation_contract import ScenePackage
+from ai_video_generator.video.scene_contract import ScenePackage
 from ai_video_generator.video.scene_timing import DurationLimits
 
 

@@ -1,22 +1,33 @@
 # System Architecture
 
-**Status:** Parts 5-7 are implemented as a synchronous local pipeline. There is no
-API server, database, worker queue, authentication, or container deployment in
-this repository.
+**Status:** scene planning, deterministic packaging, the runtime adapter, media
+generation/validation, and assembly are integrated as one synchronous local
+pipeline. Document ingestion, lesson planning, personalization, a live LLM
+adapter, the API server, database, worker queue, authentication, and container
+deployment are not implemented.
 
 ## Layers and dependency direction
 
 ```text
 scripts / future API
         |
-agents (orchestration, generation, validation, assembly)
+agents (planning agents, packaging, orchestration, generation, validation, assembly)
         |
-services (generation, validation, assembly, storage)
+services (pipeline factories, generation, validation, assembly, storage)
         |
-video contracts/utilities + integrations contracts/adapters
+models + video/whiteboard contracts + integrations contracts/adapters
         |
 core (settings, constants, exceptions, logging) + storage + utils
 ```
+
+Two scene contracts sit at the centre of the graph:
+
+- `video/scene_contract.py` (`ScenePackage`) is the provider-neutral planning
+  package produced by `ScenePackager`.
+- `video/generation_contract.py` (`SceneSpec`/`SceneSet`) is the runtime media
+  contract consumed by generation, validation, and assembly.
+- `agents/orchestration/runtime_adapter.py` is the only bridge between them and
+  is deliberately deterministic.
 
 Dependencies point downward. Domain models do not import services or adapters.
 Provider adapters depend on the provider contract, not on the orchestrator.
@@ -36,7 +47,13 @@ construct absolute paths.
 
 ### Contracts and media
 
-- `video/scene_contract.py`: canonical scene/job-adjacent models.
+- `models/lesson_plan.py`, `models/source.py`, `models/scene.py`,
+  `models/visual_plan.py`, `models/scene_planning.py`: planning contracts.
+- `whiteboard/*`: board layout, drawing primitives, handwriting, highlights,
+  continuity, and the combined `WhiteboardPlan`.
+- `video/scene_contract.py`: planning `ScenePackage`.
+- `video/generation_contract.py`: runtime scene/job-adjacent models.
+- `video/scene_timing.py`: planning timeline plus provider duration helpers.
 - `video/media_probe.py`: argument-list FFmpeg/FFprobe wrappers with timeouts,
   captured diagnostics, frame extraction, audio-level measurement, and black
   detection.
@@ -54,8 +71,23 @@ construct absolute paths.
 - `provider_factory.py`: configuration-driven construction.
 - `storage_provider.py`: storage Protocol.
 
+### Planning agents
+
+- `agents/scripting/script_agent.py`: `SceneScript` generation.
+- `agents/whiteboard/whiteboard_director_agent.py`: `WhiteboardPlan` direction
+  with cross-scene continuity.
+- `agents/visual_design/visual_design_agent.py`: `VisualPlanningResult`.
+- `agents/scene_packaging/`: deterministic `ScenePackage` composition and
+  provider-neutral prompt data.
+- `agents/orchestration/lesson_pipeline.py`: planning-agent ordering and the
+  planning-to-runtime handoff.
+- `agents/orchestration/runtime_adapter.py`: planning package to runtime scene
+  translation, including provenance and whiteboard text.
+
 ### Services and agents
 
+- `services/pipeline_factory.py`: central wiring of settings into planning and
+  media components.
 - `services/scene_generation_service.py`: capability checks, locking, retries,
   probing, storage, measured metadata, scene persistence.
 - `services/video_assembly_service.py`: assembly input gate, temporary lifecycle,
@@ -109,6 +141,11 @@ between scenes and around assembly.
 There is no background execution. A future API/worker can call
 `WorkflowOrchestrator.run()` and persist/stream the same job model, but that
 integration does not exist yet.
+
+`LessonPipeline` runs planning first, then the media orchestrator. Planning
+failures happen before a job exists and propagate as typed agent/packaging
+errors; media failures are recorded on the job. Planning results are not cached
+or resumable.
 
 ## Failure handling and idempotency
 

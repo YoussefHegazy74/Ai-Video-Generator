@@ -2,8 +2,9 @@
 # Runtime settings and credentials are not stored here; see config/settings.yaml,
 # config/video_generation.yaml, and .env.example.
 #
-# The current orchestrator runs generation -> validation -> assembly in one
-# process. There is no worker queue or distributed idempotency.
+# LessonPlanningPipeline runs the planning agents and packager; WorkflowOrchestrator
+# runs generation -> validation -> assembly in the same process. There is no worker
+# queue or distributed idempotency.
 
 orchestration:
   mode: synchronous
@@ -11,6 +12,22 @@ orchestration:
   cancellation: cooperative-between-work-units
 
 agents:
+  script:
+    implementation: src/ai_video_generator/agents/scripting/script_agent.py
+    output: SceneScript
+    provider_boundary: injected LLMClient
+  whiteboard:
+    implementation: src/ai_video_generator/agents/whiteboard/whiteboard_director_agent.py
+    output: WhiteboardPlan
+    provider_boundary: injected LLMClient
+  visual_design:
+    implementation: src/ai_video_generator/agents/visual_design/visual_design_agent.py
+    output: VisualPlanningResult
+    provider_boundary: injected LLMClient
+  scene_packaging:
+    implementation: src/ai_video_generator/agents/scene_packaging/scene_packager_agent.py
+    output: ScenePackage
+    llm_calls: none
   generation:
     implementation: src/ai_video_generator/agents/generation/video_generation_agent.py
     retries: configured in settings.yaml generation.max_attempts
