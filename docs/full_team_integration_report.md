@@ -4,9 +4,10 @@
 **Integration branch:** `integration/full-team-integration`
 **Base:** `origin/main` at `c5c4e82`
 **Merged branch:** `origin/feature/video-generator-v2` at `8b822c2`
-**Merge commit:** recorded in Git history as `merge: integrate Zeyad's generation, validation, and assembly branch`
-**Status:** integrated, tested, and pushed as an integration branch. `main` was
-not modified.
+**Merge commit:** `56397be1bca535f95747554d1b6f9224fece4823`
+**Integration commit:** `45b2d4205003f29768e5de11a54422840059ee0f`
+**Status:** integrated and tested on the integration branch. The branch is pushed
+without merging or pushing `main`.
 
 This report distinguishes **verified** results (commands run in this environment)
 from **assumptions** and **open decisions**. No live LLM, Gemini, or paid API call
@@ -304,7 +305,8 @@ committed.
 ## 11. Git delivery
 
 - Integration branch: `integration/full-team-integration`.
-- `main` was not merged into or pushed to.
-- Merge commit preserves Zeyad's branch authorship; integration commits are
-  separate and traceable.
-- Push status is recorded in the final delivery message.
+- Merge commit `56397be` preserves Zeyad's branch authorship; integration commit
+  `45b2d42` contains the glue, tests, fixtures, and documentation.
+- `main` was not merged into or pushed to; it remains at `c5c4e82`.
+- No force push, reset, clean, or history rewrite was used.
+- Generated media under `artifacts/` was not committed.
